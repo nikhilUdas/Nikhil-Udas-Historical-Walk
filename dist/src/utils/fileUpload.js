@@ -20,19 +20,8 @@ export const upload = multer({
         fileSize: 5 * 1024 * 1024, // 5MB limit
     },
 });
-// Convert image file to base64 string
-export const fileToBase64 = (file) => {
-    if (!file || !file.buffer) {
-        throw new Error('No file provided');
-    }
-    return file.buffer.toString('base64');
-};
-// Convert base64 string to buffer
-export const base64ToBuffer = (base64String) => {
-    return Buffer.from(base64String, 'base64');
-};
-// Create data URL from base64
-export const base64ToDataURL = (base64String, mimeType = 'image/jpeg') => {
-    return `data:${mimeType};base64,${base64String}`;
+// Helper to check if a buffer is valid image data
+export const isValidImageBuffer = (buffer) => {
+    return buffer && buffer.length > 0;
 };
 //# sourceMappingURL=fileUpload.js.map

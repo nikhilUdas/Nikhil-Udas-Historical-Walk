@@ -1,5 +1,5 @@
 import express from 'express';
-import { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification, deleteAllNotifications, } from '../controllers/notificationController.js';
+import { deleteAllNotifications, deleteNotification, getNotifications, getUnreadCount, markAllAsRead, markAsRead, } from '../controllers/notificationController.js';
 import { authenticate } from '../middleware/auth.js';
 const router = express.Router();
 // Protected routes (require authentication)
@@ -7,13 +7,13 @@ const router = express.Router();
 router.get('/getNotification', authenticate, getNotifications);
 // Get unread notification count
 router.get('/unread/count', authenticate, getUnreadCount);
-// Mark specific notification as read
-router.put('/:notificationId/read', authenticate, markAsRead);
 // Mark all notifications as read
 router.put('/read/all', authenticate, markAllAsRead);
-// Delete specific notification
-router.delete('/:notificationId', authenticate, deleteNotification);
+// Mark specific notification as read
+router.put('/:notificationId/read', authenticate, markAsRead);
 // Delete all notifications
 router.delete('/all', authenticate, deleteAllNotifications);
+// Delete specific notification
+router.delete('/:notificationId', authenticate, deleteNotification);
 export default router;
 //# sourceMappingURL=notificationRoute.js.map

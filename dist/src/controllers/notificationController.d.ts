@@ -8,11 +8,11 @@ export declare const deleteAllNotifications: (req: Request, res: Response) => Pr
 export declare const createNotification: (userId: number, type: string, title: string, message: string, relatedId?: number) => Promise<{
     message: string;
     user_id: number;
+    created_at: Date;
     type: string;
     title: string;
     is_read: boolean;
     related_id: number | null;
-    created_at: Date;
     notification_id: number;
 }>;
 //# sourceMappingURL=notificationController.d.ts.map

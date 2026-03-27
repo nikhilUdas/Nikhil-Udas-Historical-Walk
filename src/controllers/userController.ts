@@ -392,7 +392,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     
     // Handle profile image upload
     if (file) {
-      updateData.profile_image = file.buffer;
+      updateData.profile_image = file.buffer as any;
     }
 
     if (Object.keys(updateData).length === 0) {

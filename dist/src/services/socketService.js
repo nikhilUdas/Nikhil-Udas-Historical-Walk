@@ -1,17 +1,32 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { verifyToken } from '../middleware/auth.js';
 import prisma from '../models/index.js';
+import os from 'os';
 // Store active connections: userId -> socketId
 const userSockets = new Map();
 export let io;
+// Get local IP address
+const getLocalIP = () => {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name] || []) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+};
 // Initialize Socket.io
 export const initializeSocket = (httpServer) => {
+    const localIP = getLocalIP();
     io = new SocketIOServer(httpServer, {
         cors: {
-            origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'], // Add your frontend URLs
+            origin: [`http://localhost:3000`, `http://localhost:5173`, `http://localhost:8080`, `http://${localIP}:3000`, `http://${localIP}:5173`, `http://${localIP}:8080`], // Add your frontend URLs
             credentials: true,
         },
     });
+    console.log(`\n🔌 Socket.io is running on ws://${localIP}:8000\n`);
     // Middleware to authenticate socket connections
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;

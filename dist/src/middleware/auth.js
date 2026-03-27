@@ -32,8 +32,26 @@ export const authenticate = async (req, res, next) => {
             res.status(401).json({ message: 'Token expired' });
             return;
         }
-        console.error('Error in authentication middleware:', error);
         res.status(500).json({ message: 'Error authenticating user' });
+    }
+};
+export const optionalAuthenticate = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            const decoded = jwt.verify(token, JWT_SECRET);
+            req.user = {
+                userId: decoded.userId,
+                role: decoded.role,
+                type: decoded.type || 'user',
+            };
+        }
+        next();
+    }
+    catch (error) {
+        // Invalid token or expired, but we don't block request
+        next();
     }
 };
 //# sourceMappingURL=auth.js.map

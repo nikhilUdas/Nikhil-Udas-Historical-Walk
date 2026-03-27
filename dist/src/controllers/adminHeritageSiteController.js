@@ -1,19 +1,19 @@
-import prisma from '../models/index.js';
 import '../middleware/auth.js';
-import { fileToBase64 } from '../utils/fileUpload.js';
+import prisma from '../models/index.js';
 import { broadcastNotificationToAll } from '../services/socketService.js';
 // Add a new heritage site
 export const addHeritageSite = async (req, res) => {
     const { name, description, photo_url, gps_coordinates } = req.body;
-    const file = req.file;
+    const files = req.files;
+    const file = files && Array.isArray(files) && files.length > 0 ? files[0] : req.file;
     // Verify user is admin
     if (req.user?.type !== 'admin') {
         return res.status(403).json({ message: 'Forbidden: Only admins can add heritage sites' });
     }
-    // Validate required fields
-    if (!name || !description || !photo_url || !gps_coordinates) {
+    // Validate required fields - photo_url is optional if an image file is provided
+    if (!name || !description || (!photo_url && !file) || !gps_coordinates) {
         return res.status(400).json({
-            message: 'Missing required fields: name, description, photo_url, and gps_coordinates are required',
+            message: 'Missing required fields: name, description, (photo_url or image file), and gps_coordinates are required',
         });
     }
     try {
@@ -24,29 +24,39 @@ export const addHeritageSite = async (req, res) => {
         if (existingSite) {
             return res.status(400).json({ message: 'Heritage site with this name already exists' });
         }
-        // Convert image to base64 if provided
-        let imageData;
-        if (file) {
-            try {
-                imageData = fileToBase64(file);
-            }
-            catch (error) {
-                return res.status(400).json({
-                    message: 'Error processing image',
-                    error: error.message,
-                });
-            }
-        }
+        // Image data is handled as buffer
+        const imageData = file ? file.buffer : undefined;
         // Create the heritage site
         const site = await prisma.heritageSite.create({
             data: {
                 name,
                 description,
-                photo_url,
+                photo_url: photo_url || 'provided_via_upload',
                 gps_coordinates,
                 image_data: imageData,
             },
         });
+        // Handle multiple images if provided
+        if (files && Array.isArray(files)) {
+            // If we used the first file for imageData, we might want to skip it here to avoid duplication
+            // but the user said "even if I upload single image it should be added and even if I add multiple"
+            // The images table is for ADDITIONAL images.
+            const additionalFiles = files.length > 1 ? files.slice(1) : [];
+            const imagePromises = additionalFiles.map(async (file) => {
+                try {
+                    return prisma.heritageSiteImage.create({
+                        data: {
+                            site_id: site.site_id,
+                            image_data: file.buffer
+                        }
+                    });
+                }
+                catch (err) {
+                    console.error('Error processing additional image:', err);
+                }
+            });
+            await Promise.all(imagePromises);
+        }
         // Broadcast notification to all users about new heritage site
         const notification = {
             type: 'heritage_site_added',
@@ -59,7 +69,7 @@ export const addHeritageSite = async (req, res) => {
             message: 'Heritage site added successfully',
             site: {
                 ...site,
-                image_data: site.image_data ? `[Image stored - ${(site.image_data.length / 1024).toFixed(2)} KB]` : null,
+                image_data: site.image_data ? '[Binary Data]' : null,
             },
         });
     }
@@ -75,7 +85,8 @@ export const addHeritageSite = async (req, res) => {
 export const updateHeritageSite = async (req, res) => {
     const { site_id } = req.params;
     const { name, description, photo_url, gps_coordinates } = req.body;
-    const file = req.file;
+    const files = req.files;
+    const file = files && Array.isArray(files) && files.length > 0 ? files[0] : null;
     // Verify user is admin
     if (req.user?.type !== 'admin') {
         return res.status(403).json({ message: 'Forbidden: Only admins can edit heritage sites' });
@@ -103,15 +114,7 @@ export const updateHeritageSite = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            try {
-                updateData.image_data = fileToBase64(file);
-            }
-            catch (error) {
-                return res.status(400).json({
-                    message: 'Error processing image',
-                    error: error.message,
-                });
-            }
+            updateData.image_data = file.buffer;
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
@@ -131,11 +134,30 @@ export const updateHeritageSite = async (req, res) => {
             where: { site_id: Number(site_id) },
             data: updateData,
         });
+        // Handle multiple images update (Append new images)
+        if (files && Array.isArray(files) && files.length > 0) {
+            // First file is already used as the main image_data, skip it for additional images
+            const additionalFiles = files.length > 1 ? files.slice(1) : [];
+            const imagePromises = additionalFiles.map(async (f) => {
+                try {
+                    return prisma.heritageSiteImage.create({
+                        data: {
+                            site_id: updatedSite.site_id,
+                            image_data: f.buffer
+                        }
+                    });
+                }
+                catch (err) {
+                    console.error('Error processing additional image during update:', err);
+                }
+            });
+            await Promise.all(imagePromises);
+        }
         return res.status(200).json({
             message: 'Heritage site updated successfully',
             site: {
                 ...updatedSite,
-                image_data: updatedSite.image_data ? `[Image stored - ${(updatedSite.image_data.length / 1024).toFixed(2)} KB]` : null,
+                image_data: updatedSite.image_data ? '[Binary Data]' : null,
             },
         });
     }
@@ -182,23 +204,55 @@ export const deleteHeritageSite = async (req, res) => {
         });
     }
 };
-// Get all heritage sites (public - admin can view all)
 export const getAllHeritageSites = async (req, res) => {
     try {
         const sites = await prisma.heritageSite.findMany({
             include: {
                 stories: true,
                 routes: true,
+                images: {
+                    select: {
+                        image_id: true,
+                        // Exclude image_data from list view
+                    }
+                }
             },
             orderBy: {
                 site_id: 'desc',
             },
         });
-        // Transform sites to include image data as data URLs
-        const sitesWithImages = sites.map(site => ({
-            ...site,
-            image_url: site.image_data ? `data:image/jpeg;base64,${site.image_data}` : null,
-        }));
+        const userId = req.user?.userId;
+        let purchasedSiteIds = [];
+        if (userId) {
+            const purchases = await prisma.sitePayment.findMany({
+                where: { user_id: userId, status: 'completed' },
+                select: { site_id: true }
+            });
+            purchasedSiteIds = purchases.map(p => p.site_id);
+        }
+        // Transform sites to include image data as data URLs and truncated descriptions
+        const sitesWithImages = sites.map(site => {
+            const isUnlocked = purchasedSiteIds.includes(site.site_id) || req.user?.type === 'admin';
+            let displayDescription = site.description;
+            let hasFullContent = false;
+            // Always truncate for list view to show only 20%
+            const previewLen = Math.max(50, Math.floor(site.description.length * 0.2));
+            if (site.description.length > previewLen) {
+                displayDescription = site.description.substring(0, previewLen) + '...';
+                hasFullContent = true;
+            }
+            console.log("SITES", sites);
+            return {
+                ...site,
+                image_data: site.image_data ? '[Binary Data]' : null,
+                description: displayDescription,
+                full_description: isUnlocked ? site.description : null,
+                is_unlocked: isUnlocked,
+                has_full_content: hasFullContent,
+                image_url: site.image_data ? `/api/media/sites/${site.site_id}/image` : null,
+                additional_images: site.images.map(img => `/api/media/sites/additional/${img.image_id}`)
+            };
+        });
         return res.status(200).json({
             message: 'Heritage sites retrieved successfully',
             count: sitesWithImages.length,
@@ -225,16 +279,59 @@ export const getHeritageSiteById = async (req, res) => {
             include: {
                 stories: true,
                 routes: true,
+                images: {
+                    select: {
+                        image_id: true,
+                        // Exclude image_data to reduce payload size
+                    }
+                }
             },
         });
         if (!site) {
             return res.status(404).json({ message: 'Heritage site not found' });
         }
+        let isUnlocked = req.user?.type === 'admin';
+        const userId = req.user?.userId;
+        console.log(`[getHeritageSiteById] Checking unlock for site ${site_id}, userId: ${userId}, isAdmin: ${req.user?.type === 'admin'}`);
+        if (userId && !isUnlocked) {
+            const purchase = await prisma.sitePayment.findFirst({
+                where: {
+                    user_id: Number(userId),
+                    site_id: Number(site_id),
+                    status: 'completed'
+                }
+            });
+            isUnlocked = !!purchase;
+            console.log(`[getHeritageSiteById] Purchase found: ${isUnlocked}`);
+        }
+        let displayDescription = site.description;
+        let hasFullContent = false;
+        if (!isUnlocked) {
+            const previewLen = Math.max(50, Math.floor(site.description.length * 0.2));
+            if (site.description.length > previewLen) {
+                displayDescription = site.description.substring(0, previewLen) + '...';
+                hasFullContent = true;
+            }
+        }
+        else {
+            // For unlocked sites, we still indicate hasFullContent if it was originally long,
+            // so the UI knows to show "Read Now" instead of nothing if it was short.
+            const previewLen = Math.max(50, Math.floor(site.description.length * 0.2));
+            if (site.description.length > previewLen) {
+                hasFullContent = true;
+            }
+        }
         return res.status(200).json({
             message: 'Heritage site retrieved successfully',
             site: {
                 ...site,
-                image_url: site.image_data ? `data:image/jpeg;base64,${site.image_data}` : null,
+                image_data: site.image_data ? '[Binary Data]' : null,
+                description: displayDescription,
+                full_description: isUnlocked ? site.description : null,
+                is_unlocked: isUnlocked,
+                has_full_content: hasFullContent,
+                image_url: site.image_data ? `/api/media/sites/${site.site_id}/image` : null,
+                additional_images: site.images.map(img => `/api/media/sites/additional/${img.image_id}`)
             },
         });
     }
@@ -267,11 +364,10 @@ export const getHeritageSiteImage = async (req, res) => {
         if (!site.image_data) {
             return res.status(404).json({ message: 'No image available for this heritage site' });
         }
-        // Convert base64 to buffer and send as image
-        const imageBuffer = Buffer.from(site.image_data, 'base64');
+        // Send binary buffer directly
         res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('Content-Disposition', `inline; filename="site_${site_id}.jpg"`);
-        return res.send(imageBuffer);
+        return res.send(site.image_data);
     }
     catch (error) {
         console.error('Error fetching heritage site image:', error);

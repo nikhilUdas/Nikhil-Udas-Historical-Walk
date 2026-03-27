@@ -45,7 +45,7 @@ export const addMuseum = async (req: Request, res: Response) => {
         description,
         opening_hours,
         gps_coordinates,
-        image_data: imageData,
+        image_data: imageData as any,
       },
     });
 
@@ -58,7 +58,7 @@ export const addMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: museum.museum_id,
-              image_data: file.buffer
+              image_data: file.buffer as any
             }
           });
         } catch (err) {
@@ -128,7 +128,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_data = file.buffer;
+      updateData.image_data = file.buffer as any;
     }
 
     // Check if there's anything to update
@@ -164,7 +164,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: updatedMuseum.museum_id,
-              image_data: f.buffer
+              image_data: f.buffer as any
             }
           });
         } catch (err) {

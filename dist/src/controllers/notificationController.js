@@ -35,7 +35,7 @@ export const getUnreadCount = async (req, res) => {
     }
     catch (error) {
         console.error('Error fetching unread count:', error);
-        return res.status(500).json({ message: 'Error fetching unread count', error: error.message });
+        return res.status(500).json({ message: `Error fetching unread count: ${error.message}`, error: error.message });
     }
 };
 // Mark notification as read

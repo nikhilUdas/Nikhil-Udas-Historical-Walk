@@ -38,7 +38,7 @@ export const addStory = async (req: Request, res: Response) => {
         title,
         content,
         god_or_goddess_name,
-        media_data: file.buffer,
+        media_data: file.buffer as any,
       },
       include: {
         site: true,
@@ -111,7 +111,7 @@ export const updateStory = async (req: Request, res: Response) => {
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
     if (god_or_goddess_name !== undefined) updateData.god_or_goddess_name = god_or_goddess_name;
-    if (file) updateData.media_data = file.buffer;
+    if (file) updateData.media_data = file.buffer as any;
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {

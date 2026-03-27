@@ -42,7 +42,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
         description,
         photo_url: photo_url || 'provided_via_upload',
         gps_coordinates,
-        image_data: imageData,
+        image_data: imageData as any,
       },
     });
 
@@ -57,7 +57,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: site.site_id,
-              image_data: file.buffer
+              image_data: file.buffer as any
             }
           });
         } catch (err) {
@@ -127,7 +127,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_data = file.buffer;
+      updateData.image_data = file.buffer as any;
     }
 
     // Check if there's anything to update
@@ -160,7 +160,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: updatedSite.site_id,
-              image_data: f.buffer
+              image_data: f.buffer as any
             }
           });
         } catch (err) {
