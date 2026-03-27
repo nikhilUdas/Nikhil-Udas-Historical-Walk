@@ -42,7 +42,7 @@ export const getUnreadCount = async (req: Request, res: Response) => {
     return res.status(200).json({ unreadCount });
   } catch (error: any) {
     console.error('Error fetching unread count:', error);
-    return res.status(500).json({ message: 'Error fetching unread count', error: error.message });
+    return res.status(500).json({ message: `Error fetching unread count: ${error.message}`, error: error.message });
   }
 };
 

@@ -1,18 +1,21 @@
-import "dotenv/config";
-import express from "express";
-import type { Request, Response } from "express";
 import cors from "cors";
+import "dotenv/config";
+import type { Request, Response } from "express";
+import express from "express";
 import http from "http";
 import { initializeSocket } from "./services/socketService.js";
 
 // ❗ FIX 1: Correct route import (your file has 'userRoutes')
-import userRoutes from "./routes/userRoute.js";
-import adminStoryRoutes from "./routes/adminStoryRoute.js";
-import storyRoutes from "./routes/storyRoute.js";
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
+import adminStoryRoutes from "./routes/adminStoryRoute.js";
 import heritageSiteRoutes from "./routes/heritageSiteRoute.js";
 import museumRoutes from "./routes/museumRoute.js";
 import notificationRoutes from "./routes/notificationRoute.js";
+import paymentRoutes from "./routes/paymentRoute.js";
+import storyRoutes from "./routes/storyRoute.js";
+import ticketRoutes from "./routes/ticketRoute.js";
+import userRoutes from "./routes/userRoute.js";
+import mediaRoutes from "./routes/mediaRoute.js";
 
 import { registerUser } from "./controllers/userController.js";
 
@@ -36,15 +39,15 @@ app.use((req: Request, res: Response, next) => {
   // Force immediate output to ensure we see requests
   const timestamp = new Date().toISOString();
   const logMsg = `\n ===== INCOMING REQUEST [${timestamp}] =====\nMethod: ${req.method}\nPath: ${req.path}\nOriginal URL: ${req.originalUrl}\n`;
-  
+
   // Use console.error to ensure visibility
   console.error(`INCOMING REQUEST: ${req.method} ${req.path} `);
-  
+
   // Write to both stdout and console
   process.stdout.write(logMsg);
   console.log(logMsg);
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  
+
   next();
 });
 
@@ -80,7 +83,7 @@ app.post("/api/test", (req: Request, res: Response) => {
 });
 
 // User routes - mounted at /api/users
-app.use("/api/users", (req, res, next) => {next();}, userRoutes);
+app.use("/api/users", (req, res, next) => { next(); }, userRoutes);
 
 // Admin story routes - mounted at /api/admin/stories
 app.use("/api/admin/stories", adminStoryRoutes);
@@ -99,6 +102,19 @@ app.use("/api/museums", museumRoutes);
 
 // Notification routes - mounted at /api/notifications
 app.use("/api/notifications", notificationRoutes);
+
+// Payment routes - mounted at /api/payment
+app.use("/api/payment", paymentRoutes);
+
+// Ticket routes - mounted at /api/tickets
+app.use("/api/tickets", ticketRoutes);
+
+// Admin stats route - mounted at /api/admin/stats
+import adminStatsRoutes from "./routes/adminStatsRoute.js";
+app.use("/api/admin/stats", adminStatsRoutes);
+
+// Media routes - for serving images
+app.use("/api/media", mediaRoutes);
 
 
 app.post("/api/users/register", async (req: Request, res: Response) => {
@@ -124,6 +140,17 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: "Not Found",
     message: `Cannot ${req.method} ${req.path}`,
+  });
+});
+
+// Final global error handler to capture 500s
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error(' GLOBAL ERROR HANDLER CAUGHT:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    message: err.message || 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err : {},
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 

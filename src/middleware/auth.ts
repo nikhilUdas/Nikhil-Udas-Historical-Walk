@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'historicalwalksecret';
@@ -57,8 +57,32 @@ export const authenticate = async (
       res.status(401).json({ message: 'Token expired' });
       return;
     }
-    console.error('Error in authentication middleware:', error);
     res.status(500).json({ message: 'Error authenticating user' });
+  }
+};
+
+export const optionalAuthenticate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: number; role: string; type: 'admin' | 'user' };
+
+      req.user = {
+        userId: decoded.userId,
+        role: decoded.role,
+        type: decoded.type || 'user',
+      };
+    }
+    next();
+  } catch (error) {
+    // Invalid token or expired, but we don't block request
+    next();
   }
 };
 

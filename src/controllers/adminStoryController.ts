@@ -6,7 +6,8 @@ import { broadcastNotificationToAll } from '../services/socketService.js';
 
 // US-8: Add a new story
 export const addStory = async (req: Request, res: Response) => {
-  const { site_id, title, content, god_or_goddess_name, media_url } = req.body;
+  const { site_id, title, content, god_or_goddess_name } = req.body;
+  const file = req.file;
 
   // Verify user is admin
   if (req.user?.type !== 'admin') {
@@ -14,9 +15,9 @@ export const addStory = async (req: Request, res: Response) => {
   }
 
   // Validate required fields
-  if (!site_id || !title || !content || !god_or_goddess_name || !media_url) {
+  if (!site_id || !title || !content || !god_or_goddess_name || !file) {
     return res.status(400).json({ 
-      message: 'Missing required fields: site_id, title, content, god_or_goddess_name, and media_url are required' 
+      message: 'Missing required fields: site_id, title, content, god_or_goddess_name, and media file are required' 
     });
   }
 
@@ -37,7 +38,7 @@ export const addStory = async (req: Request, res: Response) => {
         title,
         content,
         god_or_goddess_name,
-        media_url,
+        media_data: file.buffer,
       },
       include: {
         site: true,
@@ -55,7 +56,10 @@ export const addStory = async (req: Request, res: Response) => {
 
     return res.status(201).json({
       message: 'Story added successfully',
-      story,
+      story: {
+        ...story,
+        media_data: '[Binary Data]',
+      },
     });
   } catch (error: any) {
     console.error('Error adding story:', error);
@@ -69,7 +73,8 @@ export const addStory = async (req: Request, res: Response) => {
 // US-9: Edit/Update an existing story
 export const updateStory = async (req: Request, res: Response) => {
   const { story_id } = req.params;
-  const { site_id, title, content, god_or_goddess_name, media_url } = req.body;
+  const { site_id, title, content, god_or_goddess_name } = req.body;
+  const file = req.file;
 
   // Verify user is admin
   if (req.user?.type !== 'admin') {
@@ -106,7 +111,7 @@ export const updateStory = async (req: Request, res: Response) => {
     if (title !== undefined) updateData.title = title;
     if (content !== undefined) updateData.content = content;
     if (god_or_goddess_name !== undefined) updateData.god_or_goddess_name = god_or_goddess_name;
-    if (media_url !== undefined) updateData.media_url = media_url;
+    if (file) updateData.media_data = file.buffer;
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
@@ -124,7 +129,10 @@ export const updateStory = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: 'Story updated successfully',
-      story: updatedStory,
+      story: {
+        ...updatedStory,
+        media_data: updatedStory.media_data ? '[Binary Data]' : null,
+      },
     });
   } catch (error: any) {
     console.error('Error updating story:', error);
@@ -191,7 +199,11 @@ export const getAllStories = async (req: Request, res: Response) => {
     return res.status(200).json({
       message: 'Stories retrieved successfully',
       count: stories.length,
-      stories,
+      stories: stories.map(s => ({
+        ...s,
+        media_data: s.media_data ? '[Binary Data]' : null,
+        media_url: `/api/media/stories/${s.story_id}/image`
+      })),
     });
   } catch (error: any) {
     console.error('Error fetching stories:', error);
@@ -224,7 +236,11 @@ export const getStoryById = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       message: 'Story retrieved successfully',
-      story,
+      story: {
+        ...story,
+        media_data: story.media_data ? '[Binary Data]' : null,
+        media_url: `/api/media/stories/${story.story_id}/image`
+      },
     });
   } catch (error: any) {
     console.error('Error fetching story:', error);

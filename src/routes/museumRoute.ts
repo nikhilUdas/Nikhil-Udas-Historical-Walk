@@ -1,17 +1,17 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
-import { upload } from '../utils/fileUpload.js';
 import {
   addMuseum,
-  updateMuseum,
   deleteMuseum,
   getAllMuseums,
   getMuseumById,
   getMuseumImage,
-  purchaseTicket,
-  getUserTickets,
   getTicketById,
+  getUserTickets,
+  purchaseTicket,
+  updateMuseum,
 } from '../controllers/museumController.js';
+import { authenticate } from '../middleware/auth.js';
+import { upload } from '../utils/fileUpload.js';
 
 const router = express.Router();
 
@@ -33,11 +33,11 @@ router.use(authenticate);
 
 // ==================== ADMIN ROUTES ====================
 
-// Admin only - Add a new museum with image
-router.post('/admin/add', upload.single('image'), addMuseum);
+// Admin only - Add a new museum with images
+router.post('/admin/add', upload.array('images', 5), addMuseum);
 
-// Admin only - Update a museum with optional image
-router.put('/admin/:museum_id', upload.single('image'), updateMuseum);
+// Admin only - Update a museum with optional images
+router.put('/admin/:museum_id', upload.array('images', 5), updateMuseum);
 
 // Admin only - Delete a museum
 router.delete('/admin/:museum_id', deleteMuseum);

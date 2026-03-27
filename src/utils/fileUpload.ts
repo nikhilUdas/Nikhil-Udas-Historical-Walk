@@ -1,5 +1,4 @@
 import multer from 'multer';
-import path from 'path';
 
 // Configure memory storage for multer
 const storage = multer.memoryStorage();
@@ -25,20 +24,7 @@ export const upload = multer({
   },
 });
 
-// Convert image file to base64 string
-export const fileToBase64 = (file: Express.Multer.File): string => {
-  if (!file || !file.buffer) {
-    throw new Error('No file provided');
-  }
-  return file.buffer.toString('base64');
-};
-
-// Convert base64 string to buffer
-export const base64ToBuffer = (base64String: string): Buffer => {
-  return Buffer.from(base64String, 'base64');
-};
-
-// Create data URL from base64
-export const base64ToDataURL = (base64String: string, mimeType: string = 'image/jpeg'): string => {
-  return `data:${mimeType};base64,${base64String}`;
+// Helper to check if a buffer is valid image data
+export const isValidImageBuffer = (buffer: Buffer): boolean => {
+  return buffer && buffer.length > 0;
 };

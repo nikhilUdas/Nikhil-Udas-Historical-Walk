@@ -4,7 +4,6 @@ import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
 import '../middleware/auth.js'; 
 import { sendOTPEmail } from '../utils/emailService.js';
-import { fileToBase64 } from '../utils/fileUpload.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'historicalwalksecret';
 const OTP_EXPIRY_MINUTES = 10;
@@ -317,14 +316,31 @@ export const getUserProfile = async (req: Request, res: Response) => {
       include: {
         tickets: {
           include: {
-            museum: true,
+            museum: {
+              select: {
+                museum_id: true,
+                name: true,
+                description: true,
+                opening_hours: true,
+                gps_coordinates: true,
+              }
+            },
           },
         },
         favorites: {
           include: {
-            site: true,
+            site: {
+              select: {
+                site_id: true,
+                name: true,
+                description: true,
+                photo_url: true,
+                gps_coordinates: true,
+              }
+            },
           },
         },
+        reviews: true,
       },
     });
 
@@ -339,9 +355,10 @@ export const getUserProfile = async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         isVerified: user.email_verified,
-        profileImage: user.profile_image ? `data:image/jpeg;base64,${user.profile_image}` : null,
+        profileImage: user.profile_image ? `/api/media/users/${user.user_id}/image` : null,
         tickets: user.tickets,
         favorites: user.favorites,
+        reviews: user.reviews,
       },
     });
   } catch (error: any) {
@@ -357,6 +374,13 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
   try {
     const userId = req.user?.userId;
+    console.log(`[Profile Update] Request received for userId: ${userId}`);
+    console.log(`[Profile Update] Body:`, req.body);
+    console.log(`[Profile Update] File:`, file ? { 
+      originalname: file.originalname, 
+      mimetype: file.mimetype, 
+      size: file.size 
+    } : 'No file');
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
@@ -368,14 +392,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     
     // Handle profile image upload
     if (file) {
-      try {
-        updateData.profile_image = fileToBase64(file);
-      } catch (error: any) {
-        return res.status(400).json({
-          message: 'Error processing image',
-          error: error.message,
-        });
-      }
+      updateData.profile_image = file.buffer;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -393,10 +410,12 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       }
     }
 
+    console.log(`[Profile Update] Updating user ${userId} with:`, Object.keys(updateData));
     const updatedUser = await prisma.user.update({
       where: { user_id: userId },
       data: updateData,
     });
+    console.log(`[Profile Update] Success. New profile_image exists: ${!!updatedUser.profile_image}`);
 
     return res.status(200).json({
       message: 'Profile updated successfully',
@@ -406,7 +425,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         name: updatedUser.name,
         role: updatedUser.role,
         isVerified: updatedUser.email_verified,
-        profileImage: updatedUser.profile_image ? `data:image/jpeg;base64,${updatedUser.profile_image}` : null,
+        profileImage: updatedUser.profile_image ? `/api/media/users/${updatedUser.user_id}/image` : null,
       },
     });
   } catch (error: any) {

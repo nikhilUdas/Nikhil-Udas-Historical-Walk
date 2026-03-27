@@ -1,11 +1,11 @@
 import express from 'express';
 import {
+  deleteAllNotifications,
+  deleteNotification,
   getNotifications,
   getUnreadCount,
-  markAsRead,
   markAllAsRead,
-  deleteNotification,
-  deleteAllNotifications,
+  markAsRead,
 } from '../controllers/notificationController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -19,16 +19,16 @@ router.get('/getNotification', authenticate, getNotifications);
 // Get unread notification count
 router.get('/unread/count', authenticate, getUnreadCount);
 
-// Mark specific notification as read
-router.put('/:notificationId/read', authenticate, markAsRead);
-
 // Mark all notifications as read
 router.put('/read/all', authenticate, markAllAsRead);
 
-// Delete specific notification
-router.delete('/:notificationId', authenticate, deleteNotification);
+// Mark specific notification as read
+router.put('/:notificationId/read', authenticate, markAsRead);
 
 // Delete all notifications
 router.delete('/all', authenticate, deleteAllNotifications);
+
+// Delete specific notification
+router.delete('/:notificationId', authenticate, deleteNotification);
 
 export default router;
