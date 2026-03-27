@@ -1,7 +1,7 @@
 import express from 'express';
+import { addMuseum, deleteMuseum, getAllMuseums, getMuseumById, getMuseumImage, getTicketById, getUserTickets, purchaseTicket, updateMuseum, } from '../controllers/museumController.js';
 import { authenticate } from '../middleware/auth.js';
 import { upload } from '../utils/fileUpload.js';
-import { addMuseum, updateMuseum, deleteMuseum, getAllMuseums, getMuseumById, getMuseumImage, purchaseTicket, getUserTickets, getTicketById, } from '../controllers/museumController.js';
 const router = express.Router();
 // ==================== PUBLIC ROUTES (No auth required) ====================
 // Public - Get all museums
@@ -14,10 +14,10 @@ router.get('/:museum_id/image', getMuseumImage);
 // Apply authentication to all routes below
 router.use(authenticate);
 // ==================== ADMIN ROUTES ====================
-// Admin only - Add a new museum with image
-router.post('/admin/add', upload.single('image'), addMuseum);
-// Admin only - Update a museum with optional image
-router.put('/admin/:museum_id', upload.single('image'), updateMuseum);
+// Admin only - Add a new museum with images
+router.post('/admin/add', upload.array('images', 5), addMuseum);
+// Admin only - Update a museum with optional images
+router.put('/admin/:museum_id', upload.array('images', 5), updateMuseum);
 // Admin only - Delete a museum
 router.delete('/admin/:museum_id', deleteMuseum);
 // ==================== USER ROUTES ====================

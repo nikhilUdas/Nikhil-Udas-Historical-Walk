@@ -1,6 +1,10 @@
 import prisma from '../models/index.js';
-// Preview configuration - first 200 characters of content as free preview
-const PREVIEW_LENGTH = 200;
+// Preview configuration - First 20% of content as free preview (min 50 chars)
+const getPreviewLength = (content) => {
+    if (!content)
+        return 0;
+    return Math.max(50, Math.floor(content.length * 0.2));
+};
 // Get all stories with preview (public - no auth required)
 export const getStoriesPreview = async (req, res) => {
     try {
@@ -10,7 +14,7 @@ export const getStoriesPreview = async (req, res) => {
                     select: {
                         site_id: true,
                         name: true,
-                        location: true,
+                        gps_coordinates: true,
                         photo_url: true,
                     },
                 },
@@ -19,19 +23,33 @@ export const getStoriesPreview = async (req, res) => {
                 story_id: 'desc',
             },
         });
+        // Get user id if authenticated to check purchased stories
+        const userId = req.user?.userId;
+        let purchasedStoryIds = [];
+        if (userId) {
+            const purchases = await prisma.storyPayment.findMany({
+                where: { user_id: userId, status: 'completed' },
+                select: { story_id: true }
+            });
+            purchasedStoryIds = purchases.map(p => p.story_id);
+        }
         // Return preview version of stories (truncated content)
-        const storiesWithPreview = stories.map((story) => ({
-            story_id: story.story_id,
-            site_id: story.site_id,
-            title: story.title,
-            preview: story.content.length > PREVIEW_LENGTH
-                ? story.content.substring(0, PREVIEW_LENGTH) + '...'
-                : story.content,
-            god_or_goddess_name: story.god_or_goddess_name,
-            media_url: story.media_url,
-            has_full_content: story.content.length > PREVIEW_LENGTH,
-            site: story.site,
-        }));
+        const storiesWithPreview = stories.map((story) => {
+            const previewLen = getPreviewLength(story.content);
+            return {
+                story_id: story.story_id,
+                site_id: story.site_id,
+                title: story.title,
+                preview: story.content.length > previewLen
+                    ? story.content.substring(0, previewLen) + '...'
+                    : story.content,
+                god_or_goddess_name: story.god_or_goddess_name,
+                media_url: `/api/media/stories/${story.story_id}/image`,
+                has_full_content: story.content.length > previewLen,
+                is_unlocked: purchasedStoryIds.includes(story.story_id),
+                site: story.site,
+            };
+        });
         return res.status(200).json({
             message: 'Story previews retrieved successfully',
             count: storiesWithPreview.length,
@@ -60,7 +78,6 @@ export const getStoryPreviewById = async (req, res) => {
                     select: {
                         site_id: true,
                         name: true,
-                        location: true,
                         description: true,
                         photo_url: true,
                         gps_coordinates: true,
@@ -72,16 +89,17 @@ export const getStoryPreviewById = async (req, res) => {
             return res.status(404).json({ message: 'Story not found' });
         }
         // Return preview version of the story
+        const previewLen = getPreviewLength(story.content);
         const storyPreview = {
             story_id: story.story_id,
             site_id: story.site_id,
             title: story.title,
-            preview: story.content.length > PREVIEW_LENGTH
-                ? story.content.substring(0, PREVIEW_LENGTH) + '...'
+            preview: story.content.length > previewLen
+                ? story.content.substring(0, previewLen) + '...'
                 : story.content,
             god_or_goddess_name: story.god_or_goddess_name,
-            media_url: story.media_url,
-            has_full_content: story.content.length > PREVIEW_LENGTH,
+            media_url: `/api/media/stories/${story.story_id}/image`,
+            has_full_content: story.content.length > previewLen,
             site: story.site,
         };
         return res.status(200).json({
@@ -118,7 +136,7 @@ export const getStoriesPreviewBySite = async (req, res) => {
                     select: {
                         site_id: true,
                         name: true,
-                        location: true,
+                        gps_coordinates: true,
                         photo_url: true,
                     },
                 },
@@ -128,18 +146,21 @@ export const getStoriesPreviewBySite = async (req, res) => {
             },
         });
         // Return preview version of stories
-        const storiesWithPreview = stories.map((story) => ({
-            story_id: story.story_id,
-            site_id: story.site_id,
-            title: story.title,
-            preview: story.content.length > PREVIEW_LENGTH
-                ? story.content.substring(0, PREVIEW_LENGTH) + '...'
-                : story.content,
-            god_or_goddess_name: story.god_or_goddess_name,
-            media_url: story.media_url,
-            has_full_content: story.content.length > PREVIEW_LENGTH,
-            site: story.site,
-        }));
+        const storiesWithPreview = stories.map((story) => {
+            const previewLen = getPreviewLength(story.content);
+            return {
+                story_id: story.story_id,
+                site_id: story.site_id,
+                title: story.title,
+                preview: story.content.length > previewLen
+                    ? story.content.substring(0, previewLen) + '...'
+                    : story.content,
+                god_or_goddess_name: story.god_or_goddess_name,
+                media_url: `/api/media/stories/${story.story_id}/image`,
+                has_full_content: story.content.length > previewLen,
+                site: story.site,
+            };
+        });
         return res.status(200).json({
             message: 'Story previews for site retrieved successfully',
             site_id: Number(site_id),
@@ -179,9 +200,20 @@ export const getFullStory = async (req, res) => {
         if (!story) {
             return res.status(404).json({ message: 'Story not found' });
         }
-        // TODO: Add logic to verify user has purchased access to this story
-        // For now, authenticated users can access full content
-        // You can add a Purchase/Payment verification here
+        // Check if user has purchased access to this story
+        const hasAccess = await prisma.storyPayment.findFirst({
+            where: {
+                user_id: req.user.userId,
+                story_id: Number(story_id),
+                status: 'completed'
+            }
+        });
+        const previewLen = getPreviewLength(story.content);
+        if (!hasAccess && story.content.length > previewLen) {
+            return res.status(403).json({
+                message: 'You have not purchased access to this full story.'
+            });
+        }
         return res.status(200).json({
             message: 'Full story retrieved successfully',
             story: {
@@ -190,7 +222,7 @@ export const getFullStory = async (req, res) => {
                 title: story.title,
                 content: story.content, // Full content
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_url,
+                media_url: `/api/media/stories/${story.story_id}/image`,
                 site: story.site,
             },
         });

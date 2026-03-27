@@ -1,14 +1,24 @@
+import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
+import http from "http";
+import { initializeSocket } from "./services/socketService.js";
 // ❗ FIX 1: Correct route import (your file has 'userRoutes')
-import userRoutes from "./routes/userRoute.js";
-import adminStoryRoutes from "./routes/adminStoryRoute.js";
-import storyRoutes from "./routes/storyRoute.js";
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
+import adminStoryRoutes from "./routes/adminStoryRoute.js";
+import heritageSiteRoutes from "./routes/heritageSiteRoute.js";
 import museumRoutes from "./routes/museumRoute.js";
+import notificationRoutes from "./routes/notificationRoute.js";
+import paymentRoutes from "./routes/paymentRoute.js";
+import storyRoutes from "./routes/storyRoute.js";
+import ticketRoutes from "./routes/ticketRoute.js";
+import userRoutes from "./routes/userRoute.js";
+import mediaRoutes from "./routes/mediaRoute.js";
 import { registerUser } from "./controllers/userController.js";
 const app = express();
+const httpServer = http.createServer(app);
+// Initialize Socket.io
+initializeSocket(httpServer);
 // CORS configuration - MUST be before other middleware
 app.use(cors({
     origin: ['http://localhost:8081', 'http://127.0.0.1:8081'], // Your frontend URL
@@ -62,10 +72,23 @@ app.use("/api/users", (req, res, next) => { next(); }, userRoutes);
 app.use("/api/admin/stories", adminStoryRoutes);
 // Admin heritage site routes - mounted at /api/admin/sites
 app.use("/api/admin/sites", adminHeritageSiteRoutes);
+// Public heritage site routes - mounted at /api/heritage-sites
+app.use("/api/heritage-sites", heritageSiteRoutes);
 // Public story routes - mounted at /api/stories
 app.use("/api/stories", storyRoutes);
 // Museum routes - mounted at /api/museums
 app.use("/api/museums", museumRoutes);
+// Notification routes - mounted at /api/notifications
+app.use("/api/notifications", notificationRoutes);
+// Payment routes - mounted at /api/payment
+app.use("/api/payment", paymentRoutes);
+// Ticket routes - mounted at /api/tickets
+app.use("/api/tickets", ticketRoutes);
+// Admin stats route - mounted at /api/admin/stats
+import adminStatsRoutes from "./routes/adminStatsRoute.js";
+app.use("/api/admin/stats", adminStatsRoutes);
+// Media routes - for serving images
+app.use("/api/media", mediaRoutes);
 app.post("/api/users/register", async (req, res) => {
     console.log(" Direct register route hit!");
     console.log("Request body:", req.body);
@@ -90,6 +113,16 @@ app.use((req, res) => {
         message: `Cannot ${req.method} ${req.path}`,
     });
 });
+// Final global error handler to capture 500s
+app.use((err, req, res, next) => {
+    console.error(' GLOBAL ERROR HANDLER CAUGHT:', err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+        message: err.message || 'Internal Server Error',
+        error: process.env.NODE_ENV === 'development' ? err : {},
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
 const PORT = Number(process.env.PORT) || 8000;
 const HOST = process.env.HOST || "0.0.0.0";
 process.on("uncaughtException", (err) => {
@@ -98,8 +131,9 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (err) => {
     console.error("UNHANDLED PROMISE REJECTION:", err);
 });
-app.listen(PORT, HOST, () => {
+httpServer.listen(PORT, HOST, () => {
     console.log(`SERVER STARTED SUCCESSFULLY`);
     console.log(`Port: ${PORT}`);
+    console.log(`Socket.io is running on ws://localhost:${PORT}`);
 });
 //# sourceMappingURL=app.js.map
