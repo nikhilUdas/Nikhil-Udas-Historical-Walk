@@ -59,7 +59,7 @@ export const registerUser = async (req: Request, res: Response) => {
           name: name,
           email: email,
           password: hashedPassword,
-          role: 'admin',
+          role: 'user',
           email_verified: false,
         },
       });

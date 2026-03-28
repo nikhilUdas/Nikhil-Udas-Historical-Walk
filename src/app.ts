@@ -16,6 +16,7 @@ import storyRoutes from "./routes/storyRoute.js";
 import ticketRoutes from "./routes/ticketRoute.js";
 import userRoutes from "./routes/userRoute.js";
 import mediaRoutes from "./routes/mediaRoute.js";
+import favoriteRoutes from "./routes/favoriteRoute.js";
 
 import { registerUser } from "./controllers/userController.js";
 
@@ -115,6 +116,9 @@ app.use("/api/admin/stats", adminStatsRoutes);
 
 // Media routes - for serving images
 app.use("/api/media", mediaRoutes);
+
+// Favorite routes - for user's favorite heritage sites
+app.use("/api/favorites", favoriteRoutes);
 
 
 app.post("/api/users/register", async (req: Request, res: Response) => {
