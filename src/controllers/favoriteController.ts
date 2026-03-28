@@ -43,27 +43,49 @@ export const toggleFavorite = async (req: Request, res: Response) => {
 
     if (existingFavorite) {
       // Remove from favorites
-      await prisma.favoriteSite.delete({
-        where: {
-          fav_id: existingFavorite.fav_id,
-        },
-      });
-      return res.status(200).json({ 
-        message: 'Removed from favorites', 
-        isFavorite: false 
-      });
+      try {
+        await prisma.favoriteSite.delete({
+          where: {
+            fav_id: existingFavorite.fav_id,
+          },
+        });
+        return res.status(200).json({ 
+          message: 'Removed from favorites', 
+          isFavorite: false 
+        });
+      } catch (error: any) {
+        // P2025 is "Record to delete does not exist."
+        if (error.code === 'P2025') {
+          return res.status(200).json({ 
+            message: 'Removed from favorites', 
+            isFavorite: false 
+          });
+        }
+        throw error;
+      }
     } else {
       // Add to favorites
-      await prisma.favoriteSite.create({
-        data: {
-          user_id: userId,
-          site_id: siteId,
-        },
-      });
-      return res.status(201).json({ 
-        message: 'Added to favorites', 
-        isFavorite: true 
-      });
+      try {
+        await prisma.favoriteSite.create({
+          data: {
+            user_id: userId,
+            site_id: siteId,
+          },
+        });
+        return res.status(201).json({ 
+          message: 'Added to favorites', 
+          isFavorite: true 
+        });
+      } catch (error: any) {
+        // P2002 is "Unique constraint failed"
+        if (error.code === 'P2002') {
+          return res.status(201).json({ 
+            message: 'Added to favorites', 
+            isFavorite: true 
+          });
+        }
+        throw error;
+      }
     }
   } catch (error: any) {
     console.error('Error toggling favorite:', error);
