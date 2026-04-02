@@ -11,7 +11,6 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -49,12 +48,11 @@ export default function MuseumScreen() {
   const [reviewVisible, setReviewVisible] = React.useState(false);
   const [selectedSite, setSelectedSite] = React.useState<HeritageSite | null>(null);
   const [reviewSite, setReviewSite] = React.useState<HeritageSite | null>(null);
-  const [bookingForm, setBookingForm] = React.useState({ name: "", email: "", visit_date: "", quantity: "1" });
   const [reviewForm, setReviewForm] = React.useState({ thoughts: "", rating: 5 });
   const [bookingMessage, setBookingMessage] = React.useState<string | null>(null);
   const [reviewMessage, setReviewMessage] = React.useState<string | null>(null);
   const [showMuseumForm, setShowMuseumForm] = React.useState(false);
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = React.useState<string[]>([]);
   const [museumForm, setMuseumForm] = React.useState({
     name: '',
     description: '',
@@ -135,15 +133,19 @@ export default function MuseumScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
-      setMuseumForm({ ...museumForm, image: result.assets[0].uri });
+    if (!result.canceled && result.assets) {
+      const newUris = result.assets.map(asset => asset.uri);
+      setSelectedImages(prev => [...prev, ...newUris].slice(0, 5));
     }
+  };
+
+  const removeMuseumImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const submitMuseum = async () => {
@@ -161,21 +163,21 @@ export default function MuseumScreen() {
       formData.append('description', museumForm.description);
       formData.append('opening_hours', museumForm.opening_hours);
       formData.append('gps_coordinates', museumForm.gps_coordinates);
-      // If we have an image URI that is a file path, we append it
-      if (museumForm.image && museumForm.image.startsWith('file://')) {
-        const localUri = museumForm.image;
-        const filename = localUri.split('/').pop() || 'museum.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-        // Field name 'image' as expected by backend upload.single('image')
-        formData.append('image', { uri: localUri, name: filename, type } as any);
-      } else if (selectedImage && selectedImage.startsWith('file://')) {
-        const localUri = selectedImage;
-        const filename = localUri.split('/').pop() || 'museum.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
-        formData.append('image', { uri: localUri, name: filename, type } as any);
+      if (selectedImages.length > 0) {
+        selectedImages.forEach((uri, index) => {
+          const filename = uri.split('/').pop() || `museum_${index}.jpg`;
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+          // @ts-ignore
+          formData.append('images', {
+            uri,
+            name: filename,
+            type
+          });
+        });
+
       }
 
       console.log('Submitting museum FormData:', { isEditing, editingMuseumId });
@@ -190,7 +192,7 @@ export default function MuseumScreen() {
 
       Alert.alert('Success', isEditing ? 'Museum updated successfully' : 'Museum added successfully');
       setMuseumForm({ name: '', description: '', opening_hours: '', gps_coordinates: '', image: '' });
-      setSelectedImage(null);
+      setSelectedImages([]);
       setEditingMuseumId(null);
       setShowMuseumForm(false);
       // Auto-refresh the museums list
@@ -206,7 +208,7 @@ export default function MuseumScreen() {
   const openAddMuseumForm = () => {
     setEditingMuseumId(null);
     setShowMuseumForm(true);
-    setSelectedImage(null);
+    setSelectedImages([]);
     setSelectedCoords({ latitude: 27.7172, longitude: 85.3240 });
     setMuseumForm({ name: '', description: '', opening_hours: '', gps_coordinates: '', image: '' });
   };
@@ -218,13 +220,19 @@ export default function MuseumScreen() {
 
     setEditingMuseumId(museumId);
     setShowMuseumForm(true);
-    setSelectedImage(getImageUrl(museum.image_url || museum.photo_url) || null);
+
+    // For editing, we might have multiple images from the backend
+    const mainImage = getImageUrl(museum.image_url || museum.photo_url);
+    const existingImages = museum.additional_images || [];
+    const allImages = mainImage ? [mainImage, ...existingImages] : existingImages;
+    setSelectedImages(allImages);
+
     setMuseumForm({
       name: museum.name || '',
       description: museum.description || '',
       opening_hours: (museum as any).opening_hours || '',
       gps_coordinates: museum.gps_coordinates || '',
-      image: getImageUrl(museum.image_url || museum.photo_url) || ''
+      image: mainImage || ''
     });
     // Parse coordinates for map
     if (museum.gps_coordinates) {
@@ -396,9 +404,19 @@ export default function MuseumScreen() {
     }, 1000);
   };
 
-  const openBooking = (site: HeritageSite) => {
-    setSelectedSite(site);
-    setBookingVisible(true);
+  const openBooking = (site: any) => {
+    const id = site.museum_id || site.site_id;
+    if (!id) {
+      Alert.alert("Error", "Missing museum ID.");
+      return;
+    }
+    router.push({
+      pathname: "/payment",
+      params: {
+        siteId: String(id),
+        siteName: site.name,
+      },
+    });
   };
 
   const openReview = (site: HeritageSite) => {
@@ -408,29 +426,9 @@ export default function MuseumScreen() {
     setReviewVisible(true);
   };
 
-  const submitBooking = async () => {
-    if (!selectedSite) return;
-    const qty = Number(bookingForm.quantity) || 1;
-    // Navigate to payment first; booking will be finalized from the payment screen.
-    router.push({
-      pathname: "/payment",
-      params: {
-        siteId: String(selectedSite.site_id),
-        siteName: selectedSite.name,
-        visit_date: bookingForm.visit_date,
-        quantity: String(qty),
-        amount: String(qty * 500),
-        name: bookingForm.name,
-        email: bookingForm.email,
-      },
-    });
-  };
-
   const shareReceipt = async () => {
-    if (!selectedSite) return;
-    await Share.share({
-      message: `Ticket for ${selectedSite.name}\nDate: ${bookingForm.visit_date}\nQty: ${bookingForm.quantity}`,
-    });
+    // Note: Re-implement or remove if no longer needed in museum.tsx
+    // The user wanted this gone from the modal anyway.
   };
 
   const submitSiteReview = async (site: HeritageSite) => {
@@ -534,13 +532,36 @@ export default function MuseumScreen() {
         )}
 
         {filteredMuseums.map((item, index) => (
-          <View key={item.site_id ? `museum-${item.site_id}` : `museum-idx-${index}`} style={styles.card}>
+          <View key={(item as any).museum_id ? `museum-${(item as any).museum_id}` : `museum-idx-${index}`} style={styles.card}>
             <View style={[styles.cardImage, styles.cardImageRadius]}>
-              {item.image_url || item.photo_url ? (
-                <Image
-                  source={{ uri: getImageUrl(item.image_url || item.photo_url) }}
-                  style={styles.cardImage}
-                />
+              {item.image_url || item.photo_url || (item.additional_images && item.additional_images.length > 0) ? (
+                <View>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.cardImage}
+                  >
+                    {[
+                      getImageUrl(item.image_url || item.photo_url),
+                      ...(item.additional_images?.map(img => getImageUrl(img)) || [])
+                    ].filter(Boolean).map((uri, idx) => (
+                      <Image
+                        key={idx}
+                        source={{ uri }}
+                        style={styles.carouselImage}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </ScrollView>
+                  {(item.additional_images && item.additional_images.length > 0) && (
+                    <View style={styles.carouselIndicator}>
+                      <Text style={styles.carouselIndicatorText}>
+                        {(item.additional_images.length + 1)} images • Scroll →
+                      </Text>
+                    </View>
+                  )}
+                </View>
               ) : (
                 <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
               )}
@@ -612,59 +633,6 @@ export default function MuseumScreen() {
           </View>
         ))}
       </ScrollView>
-
-      <Modal visible={bookingVisible} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Book ticket for {selectedSite?.name}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              value={bookingForm.name}
-              onChangeText={(t) => setBookingForm((p) => ({ ...p, name: t }))}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={bookingForm.email}
-              onChangeText={(t) => setBookingForm((p) => ({ ...p, email: t }))}
-              keyboardType="email-address"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Visit date (YYYY-MM-DD)"
-              value={bookingForm.visit_date}
-              onChangeText={(t) => setBookingForm((p) => ({ ...p, visit_date: t }))}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Quantity"
-              value={bookingForm.quantity}
-              onChangeText={(t) => setBookingForm((p) => ({ ...p, quantity: t }))}
-              keyboardType="numeric"
-            />
-
-            <View style={styles.totalRow}>
-              <Text style={styles.labelText}>Total</Text>
-              <Text style={styles.totalText}>Rs. {(Number(bookingForm.quantity) || 1) * 500}</Text>
-            </View>
-
-            {bookingMessage && <Text style={styles.message}>{bookingMessage}</Text>}
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.bookButton} onPress={submitBooking}>
-                <Text style={styles.bookButtonText}>Submit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={shareReceipt}>
-                <Text style={styles.secondaryButtonText}>Share Receipt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setBookingVisible(false)}>
-                <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={reviewVisible} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
@@ -761,29 +729,32 @@ export default function MuseumScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>{t('museumImage')}</Text>
+              <Text style={styles.label}>Museum Images (Up to 5)</Text>
               <TouchableOpacity
                 style={styles.imagePickerButton}
                 onPress={pickMuseumImage}
               >
-                {selectedImage ? (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image
-                      source={{ uri: selectedImage }}
-                      style={styles.imagePreview}
-                    />
-                    <View style={styles.changeImageOverlay}>
-                      <Ionicons name="camera" size={24} color="#fff" />
-                      <Text style={styles.changeImageText}>{t('changeImage')}</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.imagePickerPlaceholder}>
-                    <Ionicons name="image" size={32} color="#9CA3AF" />
-                    <Text style={styles.imagePickerText}>{t('tapToSelect')}</Text>
-                  </View>
-                )}
+                <View style={styles.imagePickerPlaceholder}>
+                  <Ionicons name="images-outline" size={32} color="#9CA3AF" />
+                  <Text style={styles.imagePickerText}>{t('tapToSelect')}</Text>
+                </View>
               </TouchableOpacity>
+
+              {selectedImages.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewList}>
+                  {selectedImages.map((uri, index) => (
+                    <View key={index} style={styles.previewImageWrapper}>
+                      <Image source={{ uri }} style={styles.previewThumbnail} />
+                      <TouchableOpacity
+                        style={styles.removeImageIcon}
+                        onPress={() => removeMuseumImage(index)}
+                      >
+                        <Ionicons name="close-circle" size={20} color="#DC2626" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
             </View>
 
             <View style={styles.formActions}>
@@ -1426,6 +1397,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  carouselImage: {
+    width: 328, // Approximate width based on screen padding
+    height: 170,
+  },
+  carouselIndicator: {
+    position: 'absolute',
+    bottom: 40,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  carouselIndicatorText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
   navigationButtons: {
     flexDirection: 'row',
     gap: 8,
@@ -1457,5 +1446,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#059669',
     fontWeight: '600',
+  },
+  calendarContainer: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginTop: 4,
+    backgroundColor: '#fff',
+  },
+  imagePreviewList: {
+    marginTop: 10,
+    flexDirection: 'row',
+  },
+  previewImageWrapper: {
+    marginRight: 10,
+    position: 'relative',
+  },
+  previewThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  removeImageIcon: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#fff',
+    borderRadius: 10,
   },
 });

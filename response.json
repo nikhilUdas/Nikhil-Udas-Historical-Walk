@@ -1,1 +1,16 @@
-{"message":"Heritage sites retrieved successfully","count":1,"sites":[{"site_id":17,"name":"Pashupati Nath","description":"This is the temple of the god shiva.","photo_url":"file:///data/user/0/host.exp.exponent/cache/ImagePicker/ec6dad87-1d15-40bd-b271-556c8bf1c9b8.jpeg","gps_coordinates":"27.6994°N, 85.3126°E","image_data":null,"stories":[],"routes":[],"image_url":null}]}
+{
+  "message": "Heritage sites retrieved successfully",
+  "count": 1,
+  "sites": [
+    {
+      "site_id": 17,
+      "name": "Pashupati Nath",
+      "description": "This is the temple of the god shiva.",
+      "photo_url": "uploads/heritage-sites/site_17_main.jpg",
+      "gps_coordinates": "27.6994°N, 85.3126°E",
+      "stories": [],
+      "routes": [],
+      "image_url": "uploads/heritage-sites/site_17_main.jpg"
+    }
+  ]
+}

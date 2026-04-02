@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient'; // Added import
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient"; // Added import
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -13,90 +15,185 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import MapView, { Marker } from 'react-native-maps';
-import { reviews as reviewsApi, sites, stories as storiesApi } from "../api";
+import MapView, { Marker } from "react-native-maps";
+import {
+  admin,
+  reviews as reviewsApi,
+  sites,
+  tickets as ticketsApi,
+} from "../api";
+import { getImageUrl } from "../utils/image";
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [userType, setUserType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sites' | 'stories'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "sites" | "stories" | "scanner"
+  >("overview");
   const [showForm, setShowForm] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedCoords, setSelectedCoords] = useState({
     latitude: 27.7172,
-    longitude: 85.3240
+    longitude: 85.324,
   });
   const mapRef = React.useRef<MapView>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    photo_url: '',
-    gps_coordinates: ''
+    name: "",
+    description: "",
+    gps_coordinates: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  const [pendingReviews, setPendingReviews] = useState<any[]>([]);
+  const [allReviews, setAllReviews] = useState<any[]>([]);
   const [stats, setStats] = useState({
     users: 0,
-    bookings: 0,
+    tickets: 0,
     revenue: 0,
-    stories: 0,
+    museums: 0,
     sites: 0,
-    reviews: 0, // Added reviews to stats state
+    reviews: 0,
   });
+  const [heritageSitesList, setHeritageSitesList] = useState<any[]>([]);
+
+  // Scanner State
+  const [scanned, setScanned] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanningResult, setScanningResult] = useState<any>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [selectedSite, setSelectedSite] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     const fetchUserType = async () => {
-      const type = await AsyncStorage.getItem('userType');
+      const type = await AsyncStorage.getItem("userType");
       setUserType(type);
       setLoading(false);
     };
     fetchUserType();
     fetchStats();
+    fetchHeritageSites();
+
+    // Auto-request camera permissions for scanner
+    requestPermission();
   }, []);
+
+  const fetchHeritageSites = async () => {
+    try {
+      const response = await sites.getAll();
+      setHeritageSitesList(response.sites || []);
+    } catch (error) {
+      console.error("Error fetching heritage sites:", error);
+    }
+  };
+
+  const handleDeleteSite = async (id: number) => {
+    Alert.alert(
+      "Delete Site",
+      "Are you sure you want to delete this heritage site?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await sites.delete(id);
+              Alert.alert("Success", "Site deleted successfully");
+              fetchHeritageSites();
+              fetchStats(); // Update counts
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete site");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleBarCodeScanned = async ({
+    type,
+    data,
+  }: {
+    type: string;
+    data: string;
+  }) => {
+    setScanned(true);
+    setScanning(true);
+    try {
+      const response = await ticketsApi.verifyQR({ qr_code: data });
+      console.log("✅ SCANNER SUCCESS:", JSON.stringify(response, null, 2));
+      setScanningResult(response);
+      Alert.alert(
+        "Success",
+        `Ticket for ${response.ticket?.museum?.name || "Museum"} verified!`,
+      );
+    } catch (error: any) {
+      console.error(
+        "❌ SCANNER ERROR:",
+        error.message || "Verification failed",
+      );
+      setScanningResult({ error: error.message });
+      Alert.alert(
+        "Error",
+        error.message || "Invalid or already checked-in ticket",
+      );
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const fetchStats = async () => {
     try {
-      // Fetch sites
-      const sitesRes = await sites.getAll();
-      const sitesCount = sitesRes.sites?.length || 0;
-
-      // Fetch stories
-      const storiesRes = await storiesApi.getPreview();
-      const storiesCount = storiesRes.stories?.length || 0;
+      // Fetch stats from the new dedicated endpoint
+      const statsData = await admin.getStats();
 
       // Fetch reviews
       const reviewsRes = await reviewsApi.getAllAdmin();
       const reviewsCount = reviewsRes.reviews?.length || 0;
 
-      // For users and bookings, we would ideally have a dedicated stats endpoint.
-      // Since we don't see one, we'll probe or use what's available.
-      // Probing for total users (might need a new endpoint or count all)
-      // For now, if there's no endpoint, we'll keep placeholders or fetch all if safe.
-
       // Update stats state
-      setStats(prev => ({
+      setStats((prev) => ({
         ...prev,
-        sites: sitesCount,
-        stories: storiesCount,
+        sites: statsData.totalHeritageSites,
+        museums: statsData.totalMuseums,
+        users: statsData.totalUsers,
+        tickets: statsData.totalTickets,
+        revenue: statsData.totalRevenue,
         reviews: reviewsCount,
-        // Using some realistic defaults if endpoints are missing
-        users: 124,
-        bookings: 67,
-        revenue: 45000,
       }));
 
-      // Set pending reviews (using what's returned from getAll)
-      setPendingReviews(reviewsRes.reviews?.slice(0, 3) || []);
+      // Set all reviews (using what's returned from getAll)
+      setAllReviews(reviewsRes.reviews || []);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        onPress: async () => {
+          try {
+            await AsyncStorage.multiRemove(["jwtToken", "userType", "user"]);
+            router.replace("/login");
+          } catch (error) {
+            console.error("Error during logout:", error);
+            Alert.alert("Error", "Failed to logout. Please try again.");
+          }
+        },
+      },
+    ]);
   };
 
   const handleMapPress = (event: any) => {
@@ -110,21 +207,29 @@ export default function AdminDashboard() {
   };
 
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'You need to grant camera roll permissions to upload images.');
+      Alert.alert(
+        "Permission Required",
+        "You need to grant camera roll permissions to upload images.",
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
-      setFormData({ ...formData, photo_url: result.assets[0].uri });
+    if (!result.canceled && result.assets) {
+      const newUris = result.assets.map((asset) => asset.uri);
+      setSelectedImages((prev) => [...prev, ...newUris].slice(0, 5));
     }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSelectLocation = () => {
@@ -143,11 +248,22 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=np&limit=8&addressdetails=1`,
-        { headers: { 'User-Agent': 'HistoricalWalkApp/1.0', 'Accept': 'application/json' } }
+        {
+          headers: {
+            "User-Agent": "HistoricalWalkApp/1.0",
+            Accept: "application/json",
+          },
+        },
       );
-      if (!response.ok) { setSearchResults([]); return; }
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) { setSearchResults([]); return; }
+      if (!response.ok) {
+        setSearchResults([]);
+        return;
+      }
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        setSearchResults([]);
+        return;
+      }
       const data = await response.json();
       setSearchResults(data || []);
     } catch (error) {
@@ -160,21 +276,30 @@ export default function AdminDashboard() {
   const handleSearchInput = (text: string) => {
     setSearchQuery(text);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => fetchSearchSuggestions(text), 300);
+    searchTimeoutRef.current = setTimeout(
+      () => fetchSearchSuggestions(text),
+      300,
+    );
   };
 
   const handleSelectSuggestion = (item: any) => {
-    const newCoords = { latitude: parseFloat(item.lat), longitude: parseFloat(item.lon) };
+    const newCoords = {
+      latitude: parseFloat(item.lat),
+      longitude: parseFloat(item.lon),
+    };
     setSelectedCoords(newCoords);
-    const placeName = item.name || item.address?.city || 'Selected Location';
+    const placeName = item.name || item.address?.city || "Selected Location";
     setSearchQuery(placeName);
     setSearchResults([]);
-    mapRef.current?.animateToRegion({
-      latitude: newCoords.latitude,
-      longitude: newCoords.longitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    }, 1000);
+    mapRef.current?.animateToRegion(
+      {
+        latitude: newCoords.latitude,
+        longitude: newCoords.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      },
+      1000,
+    );
   };
 
   const handleSearchLocation = async () => {
@@ -183,14 +308,23 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&countrycodes=np&limit=1&addressdetails=1`,
-        { headers: { 'User-Agent': 'HistoricalWalkApp/1.0', 'Accept': 'application/json' } }
+        {
+          headers: {
+            "User-Agent": "HistoricalWalkApp/1.0",
+            Accept: "application/json",
+          },
+        },
       );
-      if (!response.ok) { Alert.alert('Error', 'Failed'); setIsSearching(false); return; }
+      if (!response.ok) {
+        Alert.alert("Error", "Failed");
+        setIsSearching(false);
+        return;
+      }
       const data = await response.json();
       if (data && data.length > 0) handleSelectSuggestion(data[0]);
-      else Alert.alert('Not Found', 'Location not found');
+      else Alert.alert("Not Found", "Location not found");
     } catch (error) {
-      Alert.alert('Error', 'Failed to search');
+      Alert.alert("Error", "Failed to search");
     } finally {
       setIsSearching(false);
     }
@@ -198,42 +332,70 @@ export default function AdminDashboard() {
 
   const handleSubmitSite = async () => {
     if (!formData.name || !formData.description) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert("Error", "Please fill in all required fields");
       return;
     }
     setSubmitting(true);
     try {
       const data = new FormData();
-      data.append('name', formData.name);
-      data.append('description', formData.description);
-      data.append('photo_url', formData.photo_url || '');
-      data.append('gps_coordinates', formData.gps_coordinates || '');
-      if (selectedImage) {
-        // @ts-ignore
-        data.append('image', { uri: selectedImage, name: 'site_image.jpg', type: 'image/jpeg' });
+      data.append("name", formData.name);
+      data.append("description", formData.description);
+      data.append("gps_coordinates", formData.gps_coordinates || "");
+
+      if (selectedImages.length > 0) {
+        selectedImages.forEach((uri, index) => {
+          const filename = uri.split("/").pop() || `image_${index}.jpg`;
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : "image/jpeg";
+
+          // @ts-ignore
+          data.append("images", {
+            uri,
+            name: filename,
+            type,
+          });
+        });
       }
+
       await sites.add(data);
-      Alert.alert('Success', 'Heritage site added successfully');
-      setFormData({ name: '', description: '', photo_url: '', gps_coordinates: '' });
-      setSelectedImage(null);
+      Alert.alert("Success", "Heritage site added successfully");
+      setFormData({ name: "", description: "", gps_coordinates: "" });
+      setSelectedImages([]);
       setShowForm(false);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Something went wrong');
+      Alert.alert("Error", error.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <SafeAreaView style={styles.safeArea}><View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Loading...</Text></View></SafeAreaView>;
-  if (userType !== 'admin') return <SafeAreaView style={styles.safeArea}><View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Access Denied</Text></View></SafeAreaView>;
-
+  if (loading)
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <Text>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  if (userType !== "admin")
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <Text>Access Denied</Text>
+        </View>
+      </SafeAreaView>
+    );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Premium Header */}
-      <View style={{ overflow: 'hidden', paddingBottom: 10 }}>
+      <View style={{ overflow: "hidden", paddingBottom: 10 }}>
         <LinearGradient
-          colors={['#1e3a8a', '#3b82f6']}
+          colors={["#1e3a8a", "#3b82f6"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
@@ -248,8 +410,12 @@ export default function AdminDashboard() {
                 <Text style={styles.headerTitle}>Dashboard</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.menuButton}>
-              <Ionicons name="settings-outline" size={22} color="rgba(255,255,255,0.9)" />
+            <TouchableOpacity style={styles.menuButton} onPress={handleLogout}>
+              <Ionicons
+                name="log-out-outline"
+                size={24}
+                color="rgba(255,255,255,0.9)"
+              />
             </TouchableOpacity>
           </View>
 
@@ -260,18 +426,22 @@ export default function AdminDashboard() {
                 <Ionicons name="people" size={16} color="#fff" />
               </View>
               <View>
-                <Text style={styles.statValue}>{stats.users >= 1000 ? `${(stats.users / 1000).toFixed(1)}K` : stats.users}</Text>
+                <Text style={styles.statValue}>
+                  {stats.users >= 1000
+                    ? `${(stats.users / 1000).toFixed(1)}K`
+                    : stats.users}
+                </Text>
                 <Text style={styles.statLabel}>Users</Text>
               </View>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
               <View style={styles.statBoxIcon}>
-                <Ionicons name="trending-up" size={16} color="#fff" />
+                <Ionicons name="ticket-outline" size={16} color="#fff" />
               </View>
               <View>
-                <Text style={styles.statValue}>{stats.bookings}</Text>
-                <Text style={styles.statLabel}>Bookings</Text>
+                <Text style={styles.statValue}>{stats.tickets}</Text>
+                <Text style={styles.statLabel}>Tickets</Text>
               </View>
             </View>
             <View style={styles.statDivider} />
@@ -280,7 +450,12 @@ export default function AdminDashboard() {
                 <Ionicons name="wallet-outline" size={16} color="#fff" />
               </View>
               <View>
-                <Text style={styles.statValue}>${stats.revenue >= 1000 ? `${(stats.revenue / 1000).toFixed(0)}K` : stats.revenue}</Text>
+                <Text style={styles.statValue}>
+                  Rs.{" "}
+                  {stats.revenue >= 1000
+                    ? `${(stats.revenue / 1000).toFixed(1)}K`
+                    : stats.revenue}
+                </Text>
                 <Text style={styles.statLabel}>Revenue</Text>
               </View>
             </View>
@@ -291,170 +466,234 @@ export default function AdminDashboard() {
       {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'overview' && styles.activeTab]}
-          onPress={() => setActiveTab('overview')}
+          style={[styles.tab, activeTab === "overview" && styles.activeTab]}
+          onPress={() => setActiveTab("overview")}
         >
-          <Text style={[styles.tabText, activeTab === 'overview' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "overview" && styles.activeTabText,
+            ]}
+          >
             Overview
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'sites' && styles.activeTab]}
-          onPress={() => setActiveTab('sites')}
+          style={[styles.tab, activeTab === "sites" && styles.activeTab]}
+          onPress={() => setActiveTab("sites")}
         >
-          <Text style={[styles.tabText, activeTab === 'sites' && styles.activeTabText]}>
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "sites" && styles.activeTabText,
+            ]}
+          >
             Heritage Sites
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "scanner" && styles.activeTab]}
+          onPress={() => setActiveTab("scanner")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "scanner" && styles.activeTabText,
+            ]}
+          >
+            Scanner
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {activeTab === 'overview' && (
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {activeTab === "overview" && (
           <>
             {/* Stats Cards */}
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, { backgroundColor: '#EFF6FF' }]}>
-                <View style={[styles.statIconBox, { backgroundColor: '#2563EB' }]}>
+              <View style={[styles.statCard, { backgroundColor: "#EFF6FF" }]}>
+                <View
+                  style={[styles.statIconBox, { backgroundColor: "#2563EB" }]}
+                >
                   <Ionicons name="people" size={24} color="#fff" />
                 </View>
-                <Text style={[styles.statCardValue, { color: '#2563EB' }]}>{stats.users}</Text>
+                <Text style={[styles.statCardValue, { color: "#2563EB" }]}>
+                  {stats.users}
+                </Text>
                 <Text style={styles.statCardLabel}>Total Users</Text>
               </View>
 
-              <View style={[styles.statCard, { backgroundColor: '#FFF7ED' }]}>
-                <View style={[styles.statIconBox, { backgroundColor: '#EA580C' }]}>
-                  <Ionicons name="book" size={24} color="#fff" />
+              <View style={[styles.statCard, { backgroundColor: "#FFF7ED" }]}>
+                <View
+                  style={[styles.statIconBox, { backgroundColor: "#EA580C" }]}
+                >
+                  <Ionicons name="library-outline" size={24} color="#fff" />
                 </View>
-                <Text style={[styles.statCardValue, { color: '#EA580C' }]}>{stats.stories}</Text>
-                <Text style={styles.statCardLabel}>Total Stories</Text>
+                <Text style={[styles.statCardValue, { color: "#EA580C" }]}>
+                  {stats.museums}
+                </Text>
+                <Text style={styles.statCardLabel}>Total Museums</Text>
               </View>
 
-              <View style={[styles.statCard, { backgroundColor: '#FAF5FF' }]}>
-                <View style={[styles.statIconBox, { backgroundColor: '#9333EA' }]}>
-                  <Ionicons name="business" size={24} color="#fff" />
+              <View style={[styles.statCard, { backgroundColor: "#FAF5FF" }]}>
+                <View
+                  style={[styles.statIconBox, { backgroundColor: "#9333EA" }]}
+                >
+                  <Ionicons name="business-outline" size={24} color="#fff" />
                 </View>
-                <Text style={[styles.statCardValue, { color: '#9333EA' }]}>{stats.sites}</Text>
+                <Text style={[styles.statCardValue, { color: "#9333EA" }]}>
+                  {stats.sites}
+                </Text>
                 <Text style={styles.statCardLabel}>Heritage Sites</Text>
+              </View>
+
+              <View style={[styles.statCard, { backgroundColor: "#F0F9FF" }]}>
+                <View
+                  style={[styles.statIconBox, { backgroundColor: "#0284C7" }]}
+                >
+                  <Ionicons name="ticket-outline" size={24} color="#fff" />
+                </View>
+                <Text style={[styles.statCardValue, { color: "#0284C7" }]}>
+                  {stats.tickets}
+                </Text>
+                <Text style={styles.statCardLabel}>Tickets Booked</Text>
+              </View>
+
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: "#F0FDF4", minWidth: "100%" },
+                ]}
+              >
+                <View
+                  style={[styles.statIconBox, { backgroundColor: "#16A34A" }]}
+                >
+                  <Ionicons name="cash-outline" size={24} color="#fff" />
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={[styles.statCardValue, { color: "#16A34A" }]}>
+                    Rs. {stats.revenue.toLocaleString()}
+                  </Text>
+                  <Text style={styles.statCardLabel}>Total Revenue</Text>
+                </View>
               </View>
             </View>
 
             {/* Quick Actions */}
             <View style={styles.actionsGrid}>
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: '#16A34A' }]}
-                onPress={() => setActiveTab('sites')}
+                style={[styles.actionButton, { backgroundColor: "#2563EB" }]}
+                onPress={() => setActiveTab("scanner")}
               >
-                <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Add Heritage Site</Text>
+                <Ionicons name="qr-code-outline" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Scan Ticket</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Pending Reviews */}
+            {/* Reviews Section */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Pending Reviews</Text>
-              <TouchableOpacity>
-                <Text style={styles.seeAllText}>See All</Text>
-              </TouchableOpacity>
+              <Text style={styles.sectionTitle}>Reviews</Text>
             </View>
 
-            {pendingReviews.map((review, index) => (
+            {allReviews.map((review: any, index: number) => (
               <View key={review.review_id || index} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View style={styles.reviewAvatar}>
                     <Text style={styles.reviewAvatarText}>
-                      {review.user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                      {review.user?.name?.substring(0, 2).toUpperCase() || "U"}
                     </Text>
                   </View>
                   <View style={styles.reviewInfo}>
                     <View style={styles.reviewTopRow}>
-                      <Text style={styles.reviewName}>{review.user?.name || 'Anonymous'}</Text>
+                      <Text style={styles.reviewName}>
+                        {review.user?.name || "Anonymous"}
+                      </Text>
                       <Text style={styles.reviewTime}>
-                        {review.created_at ? new Date(review.created_at).toLocaleDateString() : 'Just now'}
+                        {review.created_at
+                          ? new Date(review.created_at).toLocaleDateString()
+                          : "Just now"}
                       </Text>
                     </View>
                     <Text style={styles.reviewText}>
-                      "{review.thoughts || 'No content'}"
+                      "{review.thoughts || "No content"}"
                     </Text>
-                    <View style={styles.reviewActions}>
-                      <TouchableOpacity style={styles.approveBtn}>
-                        <Ionicons name="checkmark" size={12} color="#15803D" />
-                        <Text style={styles.approveBtnText}>Approve</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.rejectBtn}>
-                        <Ionicons name="close" size={12} color="#B91C1C" />
-                        <Text style={styles.rejectBtnText}>Reject</Text>
-                      </TouchableOpacity>
-                    </View>
                   </View>
                 </View>
               </View>
             ))}
-            {pendingReviews.length === 0 && (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#64748b' }}>No pending reviews</Text>
+            {allReviews.length === 0 && (
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <Text style={{ color: "#64748b" }}>No reviews found</Text>
               </View>
             )}
           </>
         )}
 
-        {activeTab === 'sites' && (
+        {activeTab === "sites" && (
           <>
             {!showForm ? (
               <>
                 <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: '#16A34A' }]}
+                  style={[styles.addButton, { backgroundColor: "#16A34A" }]}
                   onPress={() => setShowForm(true)}
                 >
                   <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={styles.addButtonText}>Add New Heritage Site</Text>
+                  <Text style={styles.addButtonText}>
+                    Add New Heritage Site
+                  </Text>
                 </TouchableOpacity>
 
-                <View style={styles.listCard}>
-                  <View style={styles.listItem}>
-                    <Image
-                      source={{ uri: 'https://images.unsplash.com/photo-1607154154063-b4557080a23d?w=400' }}
-                      style={styles.listImage}
-                    />
-                    <View style={styles.listContent}>
-                      <Text style={styles.listTitle}>Patan Durbar Square</Text>
-                      <Text style={styles.listSubtitle}>Lalitpur, Kathmandu Valley</Text>
-                      <View style={styles.listActions}>
-                        <TouchableOpacity style={styles.editBtn}>
-                          <Ionicons name="create-outline" size={12} color="#2563EB" />
-                          <Text style={styles.editBtnText}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteBtn}>
-                          <Ionicons name="trash-outline" size={12} color="#B91C1C" />
-                          <Text style={styles.deleteBtnText}>Delete</Text>
-                        </TouchableOpacity>
+                {heritageSitesList.map((site) => (
+                  <TouchableOpacity
+                    key={site.site_id}
+                    style={styles.listCard}
+                    onPress={() => {
+                      setSelectedSite(site);
+                      setShowDetailsModal(true);
+                    }}
+                  >
+                    <View style={styles.listItem}>
+                      <Image
+                        source={{
+                          uri:
+                            getImageUrl(site.image_url || site.photo_url) ||
+                            "https://images.unsplash.com/photo-1607154154063-b4557080a23d?w=400",
+                        }}
+                        style={styles.listImage}
+                      />
+                      <View style={styles.listContent}>
+                        <Text style={styles.listTitle} numberOfLines={1}>
+                          {site.name}
+                        </Text>
+                        <Text style={styles.listSubtitle} numberOfLines={2}>
+                          {site.gps_coordinates || "No location set"}
+                        </Text>
                       </View>
+                      <TouchableOpacity
+                        style={styles.rightDeleteBtn}
+                        onPress={() => handleDeleteSite(site.site_id)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={20}
+                          color="#B91C1C"
+                        />
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                </View>
+                  </TouchableOpacity>
+                ))}
 
-                <View style={styles.listCard}>
-                  <View style={styles.listItem}>
-                    <Image
-                      source={{ uri: 'https://images.unsplash.com/photo-1562462181-1be0f49229d4?w=400' }}
-                      style={styles.listImage}
-                    />
-                    <View style={styles.listContent}>
-                      <Text style={styles.listTitle}>Swayambhunath Stupa</Text>
-                      <Text style={styles.listSubtitle}>Kathmandu</Text>
-                      <View style={styles.listActions}>
-                        <TouchableOpacity style={styles.editBtn}>
-                          <Ionicons name="create-outline" size={12} color="#2563EB" />
-                          <Text style={styles.editBtnText}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteBtn}>
-                          <Ionicons name="trash-outline" size={12} color="#B91C1C" />
-                          <Text style={styles.deleteBtnText}>Delete</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                {heritageSitesList.length === 0 && (
+                  <View style={{ padding: 20, alignItems: "center" }}>
+                    <Text style={{ color: "#64748b" }}>
+                      No heritage sites found
+                    </Text>
                   </View>
-                </View>
+                )}
               </>
             ) : (
               <View style={styles.formContainer}>
@@ -471,7 +710,9 @@ export default function AdminDashboard() {
                     style={styles.input}
                     placeholder="Enter site name"
                     value={formData.name}
-                    onChangeText={(text) => setFormData({ ...formData, name: text })}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, name: text })
+                    }
                   />
                 </View>
 
@@ -481,36 +722,58 @@ export default function AdminDashboard() {
                     style={[styles.input, styles.textArea]}
                     placeholder="Enter description"
                     value={formData.description}
-                    onChangeText={(text) => setFormData({ ...formData, description: text })}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, description: text })
+                    }
                     multiline
                     numberOfLines={4}
                   />
                 </View>
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Photo</Text>
+                  <Text style={styles.label}>Photos (Up to 5)</Text>
                   <TouchableOpacity
                     style={styles.imagePickerButton}
                     onPress={pickImage}
                   >
-                    {selectedImage ? (
-                      <View style={styles.imagePreviewContainer}>
-                        <Image
-                          source={{ uri: selectedImage }}
-                          style={styles.imagePreview}
-                        />
-                        <View style={styles.changeImageOverlay}>
-                          <Ionicons name="camera" size={24} color="#fff" />
-                          <Text style={styles.changeImageText}>Change Photo</Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <View style={styles.imagePickerPlaceholder}>
-                        <Ionicons name="image" size={32} color="#9CA3AF" />
-                        <Text style={styles.imagePickerText}>Tap to select photo</Text>
-                      </View>
-                    )}
+                    <View style={styles.imagePickerPlaceholder}>
+                      <Ionicons
+                        name="images-outline"
+                        size={32}
+                        color="#9CA3AF"
+                      />
+                      <Text style={styles.imagePickerText}>
+                        Tap to select photos
+                      </Text>
+                    </View>
                   </TouchableOpacity>
+
+                  {selectedImages.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.imagePreviewList}
+                    >
+                      {selectedImages.map((uri, index) => (
+                        <View key={index} style={styles.previewImageWrapper}>
+                          <Image
+                            source={{ uri }}
+                            style={styles.previewThumbnail}
+                          />
+                          <TouchableOpacity
+                            style={styles.removeImageIcon}
+                            onPress={() => removeImage(index)}
+                          >
+                            <Ionicons
+                              name="close-circle"
+                              size={20}
+                              color="#DC2626"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
 
                 <View style={styles.formGroup}>
@@ -520,8 +783,15 @@ export default function AdminDashboard() {
                     onPress={() => setShowMapModal(true)}
                   >
                     <Ionicons name="location" size={20} color="#6B7280" />
-                    <Text style={formData.gps_coordinates ? styles.mapInputText : styles.mapInputPlaceholder}>
-                      {formData.gps_coordinates || 'Tap to select location on map'}
+                    <Text
+                      style={
+                        formData.gps_coordinates
+                          ? styles.mapInputText
+                          : styles.mapInputPlaceholder
+                      }
+                    >
+                      {formData.gps_coordinates ||
+                        "Tap to select location on map"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -539,13 +809,115 @@ export default function AdminDashboard() {
                     disabled={submitting}
                   >
                     <Text style={styles.submitButtonText}>
-                      {submitting ? 'Submitting...' : 'Add Site'}
+                      {submitting ? "Submitting..." : "Add Site"}
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
           </>
+        )}
+        {activeTab === "scanner" && (
+          <View style={styles.scannerTabContainer}>
+            <View style={styles.scannerHeader}>
+              <Text style={styles.scannerTitle}>Museum Entry Scanner</Text>
+              <Text style={styles.scannerSubtitle}>
+                Scan visitors' QR codes to check them in
+              </Text>
+            </View>
+
+            {permission === null && (
+              <Text>Requesting for camera permission</Text>
+            )}
+            {permission?.granted === false && (
+              <View style={{ alignItems: "center", gap: 10, padding: 20 }}>
+                <Text style={{ textAlign: "center" }}>No access to camera</Text>
+                <TouchableOpacity
+                  onPress={requestPermission}
+                  style={{
+                    paddingHorizontal: 20,
+                    paddingVertical: 10,
+                    backgroundColor: "#2563EB",
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                    Grant Permission
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {permission?.granted && (
+              <View style={styles.cameraWrapper}>
+                <CameraView
+                  onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                  barcodeScannerSettings={{
+                    barcodeTypes: ["qr"],
+                  }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.scannerOverlay}>
+                  <View style={styles.scannerFrame} />
+                </View>
+                {scanned && (
+                  <TouchableOpacity
+                    style={styles.scanAgainButton}
+                    onPress={() => {
+                      setScanned(false);
+                      setScanningResult(null);
+                    }}
+                  >
+                    <Ionicons name="refresh" size={24} color="#fff" />
+                    <Text style={styles.scanAgainText}>Tap to Scan Again</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {scanningResult && (
+              <View
+                style={[
+                  styles.resultCard,
+                  scanningResult.error
+                    ? styles.resultError
+                    : styles.resultSuccess,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    scanningResult.error ? "close-circle" : "checkmark-circle"
+                  }
+                  size={48}
+                  color={scanningResult.error ? "#B91C1C" : "#16A34A"}
+                />
+                <Text style={styles.resultStatusText}>
+                  {scanningResult.error
+                    ? "Check-in Failed"
+                    : "Check-in Successful"}
+                </Text>
+                {!scanningResult.error && (
+                  <View style={styles.resultInfo}>
+                    <Text style={styles.resultMuseum}>
+                      {scanningResult.ticket?.museum?.name || "Museum Visit"}
+                    </Text>
+                    <Text style={styles.resultVisitor}>
+                      Visitor:{" "}
+                      {scanningResult.ticket?.user?.name || "Verified Guest"}
+                    </Text>
+                    <Text style={styles.resultQuantity}>
+                      Status: {scanningResult.ticket?.status || "Checked In"}
+                    </Text>
+                  </View>
+                )}
+                {scanningResult.error && (
+                  <Text style={styles.resultErrorMessage}>
+                    {scanningResult.error}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
         )}
       </ScrollView>
 
@@ -599,25 +971,34 @@ export default function AdminDashboard() {
             >
               {searchResults.map((item, idx) => {
                 // Extract place information
-                const placeName = item.name || item.address?.city || item.address?.town || item.address?.village || 'Unknown';
-                const placeType = item.type || item.class || 'place';
+                const placeName =
+                  item.name ||
+                  item.address?.city ||
+                  item.address?.town ||
+                  item.address?.village ||
+                  "Unknown";
+                const placeType = item.type || item.class || "place";
                 const addressParts = [];
 
                 if (item.address) {
                   if (item.address.road) addressParts.push(item.address.road);
                   if (item.address.city) addressParts.push(item.address.city);
-                  else if (item.address.town) addressParts.push(item.address.town);
-                  else if (item.address.village) addressParts.push(item.address.village);
+                  else if (item.address.town)
+                    addressParts.push(item.address.town);
+                  else if (item.address.village)
+                    addressParts.push(item.address.village);
                   if (item.address.state) addressParts.push(item.address.state);
                 }
-                const addressText = addressParts.join(', ');
+                const addressText = addressParts.join(", ");
 
                 // Choose icon based on place type
-                let iconName: any = 'location';
-                if (placeType === 'city' || placeType === 'town') iconName = 'business';
-                else if (placeType === 'tourism') iconName = 'camera';
-                else if (placeType === 'hotel' || placeType === 'hostel') iconName = 'bed';
-                else if (placeType === 'restaurant') iconName = 'restaurant';
+                let iconName: any = "location";
+                if (placeType === "city" || placeType === "town")
+                  iconName = "business";
+                else if (placeType === "tourism") iconName = "camera";
+                else if (placeType === "hotel" || placeType === "hostel")
+                  iconName = "bed";
+                else if (placeType === "restaurant") iconName = "restaurant";
 
                 return (
                   <TouchableOpacity
@@ -634,7 +1015,10 @@ export default function AdminDashboard() {
                         {placeName}
                       </Text>
                       {addressText && (
-                        <Text style={styles.suggestionSubtext} numberOfLines={1}>
+                        <Text
+                          style={styles.suggestionSubtext}
+                          numberOfLines={1}
+                        >
                           {addressText}
                         </Text>
                       )}
@@ -646,13 +1030,19 @@ export default function AdminDashboard() {
             </ScrollView>
           )}
 
-          {searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-            <View style={styles.noResultsContainer}>
-              <Ionicons name="search" size={24} color="#6B7280" />
-              <Text style={styles.noResultsText}>No locations found in Nepal</Text>
-              <Text style={styles.noResultsSubtext}>Try searching for cities, landmarks, or addresses</Text>
-            </View>
-          )}
+          {searchQuery.length >= 2 &&
+            searchResults.length === 0 &&
+            !isSearching && (
+              <View style={styles.noResultsContainer}>
+                <Ionicons name="search" size={24} color="#6B7280" />
+                <Text style={styles.noResultsText}>
+                  No locations found in Nepal
+                </Text>
+                <Text style={styles.noResultsSubtext}>
+                  Try searching for cities, landmarks, or addresses
+                </Text>
+              </View>
+            )}
 
           <View style={styles.mapInstructionBanner}>
             <Ionicons name="information-circle" size={16} color="#2563EB" />
@@ -685,7 +1075,8 @@ export default function AdminDashboard() {
             <View style={styles.coordsDisplay}>
               <Text style={styles.coordsLabel}>Selected Coordinates:</Text>
               <Text style={styles.coordsValue}>
-                {selectedCoords.latitude.toFixed(4)}°N, {selectedCoords.longitude.toFixed(4)}°E
+                {selectedCoords.latitude.toFixed(4)}°N,{" "}
+                {selectedCoords.longitude.toFixed(4)}°E
               </Text>
             </View>
             <TouchableOpacity
@@ -693,10 +1084,68 @@ export default function AdminDashboard() {
               onPress={handleSelectLocation}
             >
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.selectLocationButtonText}>Confirm Location</Text>
+              <Text style={styles.selectLocationButtonText}>
+                Confirm Location
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* Site Details Swipe-up Modal */}
+      <Modal
+        visible={showDetailsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDetailsModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.detailsModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowDetailsModal(false)}
+        >
+          <View style={styles.detailsModalContent}>
+            <View style={styles.modalHandle} />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedSite && (
+                <View style={styles.detailsHeader}>
+                  <Image
+                    source={{
+                      uri:
+                        getImageUrl(
+                          selectedSite.image_url || selectedSite.photo_url,
+                        ) ||
+                        "https://images.unsplash.com/photo-1607154154063-b4557080a23d?w=400",
+                    }}
+                    style={styles.detailsImage}
+                  />
+                  <Text style={styles.detailsTitle}>{selectedSite.name}</Text>
+
+                  <View style={styles.detailsLocation}>
+                    <Ionicons name="location" size={18} color="#2563EB" />
+                    <Text style={styles.detailsLocationText}>
+                      {selectedSite.gps_coordinates || "Location not specified"}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.label}>Description</Text>
+                  <Text style={styles.detailsDescription}>
+                    {selectedSite.description}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.detailsActions}>
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={() => setShowDetailsModal(false)}
+                >
+                  <Text style={styles.closeBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -705,7 +1154,7 @@ export default function AdminDashboard() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8fafc', // Lighter background
+    backgroundColor: "#f8fafc", // Lighter background
   },
   headerGradient: {
     paddingHorizontal: 20,
@@ -715,96 +1164,96 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 30,
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 24,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
   },
   avatarCircle: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: "rgba(255,255,255,0.3)",
   },
   avatarEmoji: {
     fontSize: 26,
   },
   headerSubtitle: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '700',
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "700",
     letterSpacing: 1,
     marginBottom: 2,
   },
   headerTitle: {
     fontSize: 22,
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   menuButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: "rgba(255,255,255,0.2)",
   },
   quickStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 20,
     padding: 16,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: "rgba(255,255,255,0.2)",
   },
   statDivider: {
     width: 1,
     height: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
   statBox: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
   statBoxIcon: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   statValue: {
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "500",
   },
 
   // Tabs
   tabContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 20,
     marginTop: 20,
     marginBottom: 10,
@@ -814,13 +1263,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 30,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
   },
   activeTab: {
-    backgroundColor: '#1e3a8a',
-    borderColor: '#1e3a8a',
+    backgroundColor: "#1e3a8a",
+    borderColor: "#1e3a8a",
     shadowColor: "#1e3a8a",
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
@@ -828,11 +1277,11 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
+    fontWeight: "600",
+    color: "#64748b",
   },
   activeTabText: {
-    color: '#fff',
+    color: "#fff",
   },
 
   content: {
@@ -846,14 +1295,15 @@ const styles = StyleSheet.create({
 
   // Dashboard Cards
   statsGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   statCard: {
-    flex: 1,
+    minWidth: "48%",
     borderRadius: 20,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -865,18 +1315,18 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 4,
   },
   statCardValue: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   statCardLabel: {
     fontSize: 12,
-    color: '#64748b',
-    fontWeight: '600',
+    color: "#64748b",
+    fontWeight: "600",
   },
 
   // Actions
@@ -884,9 +1334,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     paddingVertical: 18,
     borderRadius: 18,
@@ -897,33 +1347,33 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   actionButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   // Section Headers
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: 10,
     marginBottom: 6,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: "700",
+    color: "#1e293b",
   },
   seeAllText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#3b82f6',
+    fontWeight: "600",
+    color: "#3b82f6",
   },
 
   // Reviews
   reviewCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -933,89 +1383,89 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: "#f1f5f9",
   },
   reviewHeader: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   reviewAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#eff6ff",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: '#dbeafe',
+    borderColor: "#dbeafe",
   },
   reviewAvatarText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#2563eb',
+    fontWeight: "700",
+    color: "#2563eb",
   },
   reviewInfo: {
     flex: 1,
   },
   reviewTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 4,
   },
   reviewName: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: "700",
+    color: "#1e293b",
   },
   reviewTime: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: "#94a3b8",
   },
   reviewText: {
     fontSize: 14,
-    color: '#475569',
+    color: "#475569",
     lineHeight: 20,
     marginBottom: 12,
   },
   reviewActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   approveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#dcfce7',
+    backgroundColor: "#dcfce7",
     borderRadius: 20,
   },
   approveBtnText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#15803d',
+    fontWeight: "600",
+    color: "#15803d",
   },
   rejectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#fee2e2',
+    backgroundColor: "#fee2e2",
     borderRadius: 20,
   },
   rejectBtnText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#b91c1c',
+    fontWeight: "600",
+    color: "#b91c1c",
   },
 
   // List Items
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     padding: 16,
     borderRadius: 16,
@@ -1027,25 +1477,25 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   addButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   listCard: {
     marginBottom: 16,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: "#f1f5f9",
   },
   listItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   listImage: {
     width: 100,
@@ -1054,47 +1504,99 @@ const styles = StyleSheet.create({
   listContent: {
     flex: 1,
     padding: 12,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   listTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: "700",
+    color: "#1e293b",
     marginBottom: 4,
   },
   listSubtitle: {
     fontSize: 13,
-    color: '#64748b',
+    color: "#64748b",
     marginBottom: 8,
   },
-  listActions: {
-    flexDirection: 'row',
-    gap: 16,
+  rightDeleteBtn: {
+    padding: 16,
+    justifyContent: "center",
   },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  detailsModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  editBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2563EB',
+  detailsModalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 8,
+    maxHeight: "85%",
   },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
   },
-  deleteBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#B91C1C',
+  detailsHeader: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+  },
+  detailsImage: {
+    width: "100%",
+    height: 250,
+    borderRadius: 24,
+    marginBottom: 20,
+  },
+  detailsTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginBottom: 8,
+  },
+  detailsLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 16,
+  },
+  detailsLocationText: {
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  detailsDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#475569",
+    marginBottom: 24,
+  },
+  detailsActions: {
+    flexDirection: "row",
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    gap: 12,
+  },
+  closeBtn: {
+    flex: 1,
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  closeBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#64748b",
   },
 
   // Form
   formContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     padding: 24,
     shadowColor: "#000",
@@ -1104,41 +1606,41 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   formHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 24,
   },
   formTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#1e293b',
+    fontWeight: "800",
+    color: "#1e293b",
   },
   formGroup: {
     marginBottom: 20,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+    fontWeight: "600",
+    color: "#475569",
     marginBottom: 8,
     marginLeft: 4,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: '#1e293b',
+    color: "#1e293b",
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   formActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 10,
   },
@@ -1146,139 +1648,139 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelButton: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: "#f1f5f9",
   },
   cancelButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#64748b',
+    fontWeight: "600",
+    color: "#64748b",
   },
   submitButton: {
-    backgroundColor: '#16a34a',
+    backgroundColor: "#16a34a",
   },
   submitButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
   },
 
   // Map Input & Image Picker
   mapInput: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    backgroundColor: '#f8fafc',
+    backgroundColor: "#f8fafc",
   },
   mapInputText: {
     fontSize: 15,
-    color: '#1e293b',
+    color: "#1e293b",
   },
   mapInputPlaceholder: {
     fontSize: 15,
-    color: '#94a3b8',
+    color: "#94a3b8",
   },
   imagePickerButton: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
+    borderColor: "#e2e8f0",
+    borderStyle: "dashed",
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#f8fafc',
+    overflow: "hidden",
+    backgroundColor: "#f8fafc",
   },
   imagePickerPlaceholder: {
     paddingVertical: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   imagePickerText: {
     fontSize: 14,
-    color: '#64748b',
+    color: "#64748b",
   },
   imagePreviewContainer: {
-    position: 'relative',
-    width: '100%',
+    position: "relative",
+    width: "100%",
     height: 200,
   },
   imagePreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   changeImageOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: 6,
   },
   changeImageText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   // Map Modal
   mapModalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   mapModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: "#e2e8f0",
   },
   mapModalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: "700",
+    color: "#1e293b",
   },
   mapInstructionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eff6ff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#dbeafe',
+    borderBottomColor: "#dbeafe",
   },
   mapInstructionText: {
     flex: 1,
     fontSize: 13,
-    color: '#1e40af',
+    color: "#1e40af",
   },
   searchContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
     gap: 10,
-    backgroundColor: '#1e293b',
+    backgroundColor: "#1e293b",
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: "#334155",
   },
   searchInputWrapper: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#334155',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#334155",
     borderRadius: 10,
     paddingHorizontal: 12,
     gap: 10,
@@ -1287,76 +1789,76 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     fontSize: 15,
-    color: '#f8fafc',
+    color: "#f8fafc",
   },
   loadingSpinner: {
     paddingHorizontal: 4,
   },
   loadingText: {
     fontSize: 16,
-    color: '#94a3b8',
-    fontWeight: '600',
+    color: "#94a3b8",
+    fontWeight: "600",
   },
   searchButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3b82f6",
     width: 46,
     height: 46,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestionList: {
-    backgroundColor: '#1e293b',
+    backgroundColor: "#1e293b",
     maxHeight: 300,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: "#334155",
   },
   suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: "#334155",
     gap: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: "#1e293b",
   },
   suggestionIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#334155',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#334155",
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestionTextContainer: {
     flex: 1,
   },
   suggestionText: {
     fontSize: 15,
-    color: '#f8fafc',
-    fontWeight: '500',
+    color: "#f8fafc",
+    fontWeight: "500",
     marginBottom: 2,
   },
   suggestionSubtext: {
     fontSize: 13,
-    color: '#94a3b8',
+    color: "#94a3b8",
   },
   noResultsContainer: {
     padding: 32,
-    backgroundColor: '#1e293b',
-    alignItems: 'center',
+    backgroundColor: "#1e293b",
+    alignItems: "center",
     gap: 12,
   },
   noResultsText: {
     fontSize: 16,
-    color: '#f8fafc',
-    fontWeight: '500',
+    color: "#f8fafc",
+    fontWeight: "500",
   },
   noResultsSubtext: {
     fontSize: 14,
-    color: '#94a3b8',
-    textAlign: 'center',
+    color: "#94a3b8",
+    textAlign: "center",
   },
   map: {
     flex: 1,
@@ -1364,34 +1866,117 @@ const styles = StyleSheet.create({
   mapModalFooter: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    borderTopColor: "#e2e8f0",
+    backgroundColor: "#fff",
   },
   coordsDisplay: {
     marginBottom: 16,
   },
   coordsLabel: {
     fontSize: 12,
-    color: '#64748b',
+    color: "#64748b",
     marginBottom: 4,
   },
   coordsValue: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontWeight: "600",
+    color: "#1e293b",
   },
   selectLocationButton: {
-    backgroundColor: '#16a34a',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#16a34a",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 14,
     gap: 8,
   },
   selectLocationButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
+  },
+  scannerTabContainer: { padding: 20, gap: 20 },
+  scannerHeader: { marginBottom: 10 },
+  scannerTitle: { fontSize: 20, fontWeight: "800", color: "#1e293b" },
+  scannerSubtitle: { fontSize: 13, color: "#64748b" },
+  cameraWrapper: {
+    height: 350,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#000",
+    position: "relative",
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: "#3b82f6",
+    borderRadius: 20,
+    backgroundColor: "transparent",
+  },
+  scanAgainButton: {
+    position: "absolute",
+    bottom: 30,
+    alignSelf: "center",
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  scanAgainText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  resultCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  resultSuccess: { borderColor: "#BBF7D0", backgroundColor: "#F0FDF4" },
+  resultError: { borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
+  resultStatusText: { fontSize: 22, fontWeight: "800", color: "#1e293b" },
+  resultInfo: { alignItems: "center", gap: 4 },
+  resultMuseum: { fontSize: 18, fontWeight: "700", color: "#334155" },
+  resultVisitor: { fontSize: 15, color: "#64748b" },
+  resultQuantity: { fontSize: 14, fontWeight: "600", color: "#64748b" },
+  resultErrorMessage: { color: "#B91C1C", fontSize: 14, textAlign: "center" },
+  imagePreviewList: {
+    marginTop: 10,
+    flexDirection: "row",
+  },
+  previewImageWrapper: {
+    marginRight: 10,
+    position: "relative",
+  },
+  previewThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  removeImageIcon: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#fff",
+    borderRadius: 10,
   },
 });

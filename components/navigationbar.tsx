@@ -66,13 +66,6 @@ export default function NavigationBar() {
           inactiveIcon: "star-outline" as const,
           content: <ReviewScreen />,
         },
-        {
-          key: "profile" as const,
-          label: t("profile"),
-          activeIcon: "person" as const,
-          inactiveIcon: "person-outline" as const,
-          content: <ProfileScreen />,
-        },
       ];
     }
     // Default: normal user

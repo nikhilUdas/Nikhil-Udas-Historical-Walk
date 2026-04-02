@@ -1,18 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Alert, Image, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { user as userApi } from "../api";
 import { useLanguage } from "../hooks/i18n";
-
-const stats = [
-  { key: "bookings", label: "Bookings", value: 12, icon: "ticket-outline", color: "#fee2e2" },
-  { key: "reviews", label: "Reviews", value: 8, icon: "star-outline", color: "#e0f2fe" },
-  { key: "visited", label: "Visited", value: 24, icon: "location-outline", color: "#f3e8ff" },
-];
-
+import { getImageUrl } from "../utils/image";
 
 export default function ProfileScreen() {
   const { language, setLanguage, t } = useLanguage();
@@ -28,33 +23,27 @@ export default function ProfileScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const storedType = await AsyncStorage.getItem('userType');
-
-        // Use centralized API
-        const data = await userApi.getProfile();
-
-        const fetchedUser = data.user;
-        setError(null);
-        setUser(fetchedUser);
-        setEmail(fetchedUser?.email || "");
-        setName(fetchedUser?.name || "");
-        // Use profileImage from backend, falling back to legacy image or null
-        setImageUri(fetchedUser?.profileImage || fetchedUser?.image || null);
-        const roleLabel = fetchedUser?.role === 'admin' ? 'Admin' : 'Heritage Explorer';
-        setRole(roleLabel);
-        setUserType(fetchedUser?.role || storedType);
-        await AsyncStorage.setItem('user', JSON.stringify(fetchedUser));
-      } catch (e: any) {
-        setError(e.message || 'Unable to load profile');
-      }
-      finally {
-        setLoading(false);
-      }
-    })();
+    fetchProfile();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const storedType = await AsyncStorage.getItem('userType');
+      const data = await userApi.getProfile();
+      const fetchedUser = data.user;
+      setUser(fetchedUser);
+      setEmail(fetchedUser?.email || "");
+      setName(fetchedUser?.name || "");
+      setImageUri(fetchedUser?.profileImage || null);
+      setRole(fetchedUser?.role === 'admin' ? 'Admin' : 'Heritage Explorer');
+      setUserType(fetchedUser?.role || storedType);
+    } catch (e: any) {
+      setError(e.message || 'Unable to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -75,37 +64,23 @@ export default function ProfileScreen() {
   };
 
   const handleUpdateProfile = async () => {
-    if (!name && !email && !imageUri) {
-      Alert.alert('Nothing to update', 'Update name, email, or select an image to proceed.');
-      return;
-    }
-
     try {
       setSaving(true);
-
       const formData = new FormData();
       if (name) formData.append('name', name);
       if (email) formData.append('email', email);
 
-      // Strict check: Only upload if it's a new local file selection
       if (imageUri && imageUri.startsWith('file://')) {
         const filename = imageUri.split('/').pop() || 'profile.jpg';
         const ext = filename.split('.').pop()?.toLowerCase();
-        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg';
+        const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
         formData.append('image', { uri: imageUri, name: filename, type: mime } as any);
       }
 
-      const data = await userApi.updateProfile(formData);
-
-      const updated = data.user;
-      setUser(updated);
-      setEmail(updated?.email || "");
-      setName(updated?.name || "");
-      // Use the returned profile image
-      setImageUri(updated?.profileImage || updated?.image || null);
-      await AsyncStorage.setItem('user', JSON.stringify(updated));
+      await userApi.updateProfile(formData);
       Alert.alert('Success', 'Profile updated successfully');
       setShowEditModal(false);
+      fetchProfile();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Something went wrong');
     } finally {
@@ -114,439 +89,287 @@ export default function ProfileScreen() {
   };
 
   const accountInfo = [
-    { key: "email", label: t("email"), value: email, icon: "mail-outline", color: "#e0f2fe" },
-    { key: "profile", label: t("Edit Profile"), value: "", icon: "person-outline", color: "#f3e8ff" },
-    ...(userType !== 'admin' ? [{ key: "reviews", label: "My Reviews", value: "", icon: "star-outline", color: "#fef3c7" }] : []),
+    { key: "email", label: t("email"), value: email, icon: "mail-outline" },
+    { key: "tickets", label: "My Tickets", value: "", icon: "ticket-outline", show: userType !== 'admin' },
+    { key: "favorites", label: "Favorite Sites", value: "", icon: "heart-outline", show: userType !== 'admin' },
+    { key: "reviews", label: "My Reviews", value: "", icon: "star-outline", show: userType !== 'admin' },
   ];
 
   const preferences = [
-    { key: "language", label: t("Language"), value: language === "en" ? "English" : "नेपाली", icon: "globe-outline", color: "#e0f2fe" },
-    { key: "payments", label: t("Payment History"), value: "", icon: "card-outline", color: "#e7f5ff" },
-    ...(userType !== 'admin' ? [{ key: "security", label: t("Security & Privacy"), value: "", icon: "shield-checkmark-outline", color: "#ffe4e6" }] : []),
-    { key: "notifications", label: t("Notifications"), value: "", icon: "notifications-outline", color: "#fef3c7" },
-    ...(userType !== 'admin' ? [{ key: "help", label: t("Help & Support"), value: "", icon: "help-circle-outline", color: "#f1f5f9" }] : []),
+    { key: "language", label: t("Language"), value: language === "en" ? "English" : "नेपाली", icon: "globe-outline" },
+    { key: "payments", label: t("Payment History"), value: "", icon: "card-outline" },
+    { key: "security", label: t("Security & Privacy"), value: "", icon: "shield-checkmark-outline", show: userType !== 'admin' },
+    { key: "help", label: t("Help & Support"), value: "", icon: "help-circle-outline", show: userType !== 'admin' },
   ];
 
-  const handleLogout = () => router.replace("/login");
-
-  const handleOpenEditModal = () => {
-    setName(user?.name || "");
-    setEmail(user?.email || "");
-    setShowEditModal(true);
-  };
-
-  // Get initials for avatar
   const initials = name
     ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {loading && (
-          <View style={styles.loadingBanner}>
-            <Text style={styles.loadingText}>Loading profile...</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Top Blue Background */}
+        <View style={styles.headerBackground}>
+          <LinearGradient
+            colors={['#1e3a8a', '#1e40af']}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+
+        {/* Floating Profile Card */}
+        <View style={styles.profileCard}>
+          <TouchableOpacity 
+            style={styles.editProfileButton} 
+            onPress={() => setShowEditModal(true)}
+          >
+            <Ionicons name="create-outline" size={20} color="#1e3a8a" />
+          </TouchableOpacity>
+
+          <View style={styles.avatarContainer}>
+            <TouchableOpacity onPress={handlePickImage} style={styles.avatarWrapper}>
+              {imageUri ? (
+                <Image source={{ uri: getImageUrl(imageUri) }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.cameraIconBadge}>
+                <Ionicons name="camera" size={14} color="#fff" />
+              </View>
+            </TouchableOpacity>
           </View>
-        )}
-        {!!error && !loading && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-        <View style={styles.headerCard}>
-          <View style={styles.avatarWrap}>
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>{initials}</Text>
-            )}
-            <View style={styles.badge}>
-              <Ionicons name="checkmark-circle" size={14} color="#b91c1c" />
+
+          <Text style={styles.userName}>{name || "User Name"}</Text>
+
+          {/* Account Information Section */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoSectionTitle}>{t('accountInfo')}</Text>
+            <View style={styles.infoList}>
+              {accountInfo.map((item) => (
+                (item.show !== false) && (
+                  <TouchableOpacity 
+                    key={item.key} 
+                    style={styles.infoItem}
+                    onPress={() => {
+                      if (item.key === "tickets") router.push('/mytickets');
+                      else if (item.key === "favorites") router.push('/favorites');
+                      else if (item.key === "reviews") router.push('/review');
+                      // No email or location click trigger
+                    }}
+                  >
+                    <View style={styles.infoIconWrapper}>
+                      <Ionicons name={item.icon as any} size={18} color="#64748b" />
+                    </View>
+                    <View style={styles.infoTextWrapper}>
+                      <Text style={styles.infoLabel}>{item.label}</Text>
+                      {!!item.value && <Text style={styles.infoValue}>{item.value}</Text>}
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#cbd5e1" />
+                  </TouchableOpacity>
+                )
+              ))}
             </View>
           </View>
-          <Text style={styles.name}>{name || "Guest"}</Text>
-          <Text style={styles.role}>{role || "Heritage Explorer"}</Text>
         </View>
 
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>{t('accountOverview')}</Text>
-          <View style={styles.statsRow}>
-            {stats.map((item) => (
-              <View key={item.key} style={styles.statCard}>
-                <View style={[styles.statIconWrap, { backgroundColor: item.color }]}>
-                  <Ionicons name={item.icon as any} size={18} color="#111827" />
-                </View>
-                <Text style={styles.statValue}>{item.value}</Text>
-                <Text style={styles.statLabel}>{t(item.key)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>{t('accountInfo')}</Text>
-          <View style={styles.cardList}>
-            {accountInfo.map((item, idx) => (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.listRow, idx === accountInfo.length - 1 && styles.noBorder]}
-                onPress={() => {
-                  if (item.key === "profile") handleOpenEditModal();
-                  else if (item.key === "reviews") router.push('/review');
-                }}
-              >
-                <View style={[styles.iconPill, { backgroundColor: item.color }]}>
-                  <Ionicons name={item.icon as any} size={16} color="#0f172a" />
-                </View>
-                <View style={styles.listContent}>
-                  <Text style={styles.listLabel}>{item.label}</Text>
-                  {!!item.value && <Text style={styles.listValue}>{item.value}</Text>}
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitle}>{t("Preferences")}</Text>
-          <View style={styles.cardList}>
-            {preferences.map((item, idx) => {
-              if (item.key === "language") {
-                return (
-                  <TouchableOpacity
-                    key={item.key}
-                    style={[styles.listRow, idx === preferences.length - 1 && styles.noBorder]}
-                    onPress={() => setLanguage(language === "en" ? "np" : "en")}
-                  >
-                    <View style={[styles.iconPill, { backgroundColor: item.color }]}>
-                      <Ionicons name={item.icon as any} size={16} color="#0f172a" />
+        {/* Preferences / Settings Section */}
+        <View style={styles.infoSection}>
+          <Text style={styles.infoSectionTitle}>{t('Preferences')}</Text>
+          <View style={styles.settingsCard}>
+            {preferences.map((item, idx) => (
+              (item.show !== false) && (
+                <TouchableOpacity 
+                  key={item.key} 
+                  style={[styles.settingsRow, idx === preferences.length - 1 && { borderBottomWidth: 0 }]}
+                  onPress={() => {
+                    if (item.key === "language") setLanguage(language === "en" ? "np" : "en");
+                    else if (item.key === "payments") router.push('/payment-history');
+                  }}
+                >
+                  <View style={styles.settingsLeft}>
+                    <View style={styles.settingsIconBg}>
+                      <Ionicons name={item.icon as any} size={18} color="#334155" />
                     </View>
-                    <View style={styles.listContent}>
-                      <Text style={styles.listLabel}>{item.label}</Text>
-                      {!!item.value && <Text style={styles.listValue}>{item.value}</Text>}
+                    <View>
+                      <Text style={styles.settingsText}>{item.label}</Text>
+                      {!!item.value && <Text style={styles.settingsValue}>{item.value}</Text>}
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
-                  </TouchableOpacity>
-                );
-              }
-              return (
-                <TouchableOpacity key={item.key} style={[styles.listRow, idx === preferences.length - 1 && styles.noBorder]}>
-                  <View style={[styles.iconPill, { backgroundColor: item.color }]}>
-                    <Ionicons name={item.icon as any} size={16} color="#0f172a" />
                   </View>
-                  <View style={styles.listContent}>
-                    <Text style={styles.listLabel}>{item.label}</Text>
-                    {!!item.value && <Text style={styles.listValue}>{item.value}</Text>}
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+                  <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
                 </TouchableOpacity>
-              );
-            })}
+              )
+            ))}
           </View>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#b91c1c" />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
-
-        <Modal
-          visible={showEditModal}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowEditModal(false)}
+        <TouchableOpacity 
+          style={styles.logoutButton} 
+          onPress={() => router.replace("/login")}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Profile</Text>
-                <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                  <Ionicons name="close" size={22} color="#111827" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.cardListForm}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Name</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Your name"
-                    value={name}
-                    onChangeText={setName}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Your email"
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Profile Image</Text>
-                  <TouchableOpacity style={styles.imagePickerButton} onPress={handlePickImage}>
-                    {imageUri ? (
-                      <View style={styles.imagePreviewContainer}>
-                        <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                        <View style={styles.changeImageOverlay}>
-                          <Ionicons name="camera" size={20} color="#fff" />
-                          <Text style={styles.changeImageText}>Change</Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <View style={styles.imagePickerPlaceholder}>
-                        <Ionicons name="image" size={24} color="#9CA3AF" />
-                        <Text style={styles.imagePickerText}>Upload image (max 5MB)</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.modalActions}>
-                  <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowEditModal(false)}>
-                    <Text style={styles.modalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                    onPress={handleUpdateProfile}
-                    disabled={saving}
-                  >
-                    <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+          <View style={styles.settingsLeft}>
+            <View style={[styles.settingsIconBg, { backgroundColor: '#fee2e2' }]}>
+              <Ionicons name="log-out" size={18} color="#ef4444" />
             </View>
+            <Text style={[styles.settingsText, { color: '#ef4444' }]}>Log Out</Text>
           </View>
-        </Modal>
+          <Ionicons name="chevron-forward" size={18} color="#fca5a5" />
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Edit Modal */}
+      <Modal visible={showEditModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Ionicons name="close" size={24} color="#334155" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Name</Text>
+              <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="Enter your name" />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput value={email} onChangeText={setEmail} style={styles.input} placeholder="Enter your email" keyboardType="email-address" />
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.saveButton, saving && { opacity: 0.7 }]} 
+              onPress={handleUpdateProfile}
+              disabled={saving}
+            >
+              <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save Changes"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#f8fafc" },
-  container: { padding: 16, gap: 16, paddingBottom: 36, paddingTop: 36 },
-  headerCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    alignItems: "center",
-    paddingVertical: 18,
-    gap: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  avatarWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: "#b91c1c",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 20,
-  },
-  avatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },
-  badge: {
-    position: "absolute",
-    bottom: -2,
-    right: -4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  name: { fontSize: 18, fontWeight: "700", color: "#0f172a" },
-  role: { fontSize: 12, color: "#6b7280" },
-  sectionBlock: { gap: 10 },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  statsRow: { flexDirection: "row", gap: 12 },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    gap: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  statIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statValue: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
-  statLabel: { fontSize: 12, color: "#6b7280" },
-  cardList: {
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  listRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-    gap: 10,
-  },
-  noBorder: { borderBottomWidth: 0 },
-  iconPill: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  listContent: { flex: 1 },
-  listLabel: { fontSize: 13, fontWeight: "700", color: "#0f172a" },
-  listValue: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  loadingBanner: {
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#eef2ff',
-  },
-  loadingText: { color: '#1d4ed8', fontSize: 13, fontWeight: '600' },
-  errorBanner: {
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: '#fef2f2',
-  },
-  errorText: { color: '#b91c1c', fontSize: 13, fontWeight: '600' },
-  cardListForm: {
+  scrollContent: { paddingBottom: 40 },
+  headerBackground: { height: 120, width: '100%' },
+  profileCard: {
     backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    marginHorizontal: 16,
+    borderRadius: 24,
+    marginTop: -40,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0f172a',
-    backgroundColor: '#f8fafc',
+  editProfileButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    zIndex: 10,
   },
-  imagePickerButton: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 10,
-    backgroundColor: '#f8fafc',
-    minHeight: 120,
-    overflow: 'hidden',
-  },
-  imagePickerPlaceholder: {
-    flex: 1,
-    minHeight: 120,
+  avatarContainer: {
+    marginTop: -40,
+    marginBottom: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
   },
-  imagePickerText: { color: '#6b7280', fontSize: 12 },
-  imagePreviewContainer: {
-    width: '100%',
-    height: 150,
+  avatarWrapper: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 4,
+    borderColor: '#fff',
+    backgroundColor: '#cbd5e1',
+    justifyContent: 'center',
+    alignItems: 'center',
     position: 'relative',
   },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-  },
-  changeImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+  avatarImage: { width: 76, height: 76, borderRadius: 38 },
+  avatarPlaceholder: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#1e3a8a', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#fff', fontSize: 26, fontWeight: '700' },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#1e3a8a',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
   },
-  changeImageText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  saveButton: {
-    backgroundColor: '#b91c1c',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#f8fafc',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 16,
-    gap: 12,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  modalCancelButton: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalCancelText: { color: '#111827', fontWeight: '700', fontSize: 14 },
-  logoutButton: {
-    marginTop: 4,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
+  userName: { fontSize: 22, fontWeight: '700', color: '#1e293b', textAlign: 'center' },
+  
+  infoSection: { marginTop: 24, paddingHorizontal: 16 },
+  infoSectionTitle: { fontSize: 14, fontWeight: '700', color: '#64748b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoList: { gap: 16 },
+  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  infoIconWrapper: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#f1f5f9' },
+  infoTextWrapper: { flex: 1 },
+  infoLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600' },
+  infoValue: { fontSize: 14, color: '#334155', fontWeight: '500', marginTop: 1 },
+
+  settingsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  logoutText: { color: "#b91c1c", fontSize: 14, fontWeight: "700" },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
+  },
+  settingsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingsIconBg: { backgroundColor: '#f1f5f9', width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  settingsText: { fontSize: 14, fontWeight: '600', color: '#334155' },
+  settingsValue: { fontSize: 12, color: '#94a3b8', marginTop: 1 },
+
+  logoutButton: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 24,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 40,
+  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1e293b' },
+  inputGroup: { marginBottom: 16 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 6 },
+  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 12, fontSize: 14, color: '#1e293b' },
+  saveButton: { backgroundColor: '#1e3a8a', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  saveButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
+

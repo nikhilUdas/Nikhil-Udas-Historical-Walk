@@ -2,9 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   API_BASE,
   API_BASE_ADMIN,
+  API_BASE_ADMIN_STATS,
   API_BASE_MUSEUM,
   API_BASE_NOTIFICATIONS,
-  API_BASE_STORIES
+  API_BASE_PAYMENT,
+  API_BASE_SITES,
+  API_BASE_STORIES,
+  API_BASE_TICKETS,
+  API_BASE_FAVORITES
 } from './constants/api';
 
 // --- Types ---
@@ -44,6 +49,7 @@ export type Story = {
   media_url?: string;
   god_or_goddess_name?: string;
   has_full_content?: boolean;
+  is_unlocked?: boolean;
 };
 
 export type HeritageSite = {
@@ -55,6 +61,10 @@ export type HeritageSite = {
   image_url?: string;
   gps_coordinates?: string;
   tag?: string;
+  additional_images?: string[];
+  full_description?: string;
+  is_unlocked?: boolean;
+  has_full_content?: boolean;
 };
 
 export type Museum = {
@@ -67,6 +77,7 @@ export type Museum = {
   image_url?: string;
   opening_hours?: string;
   gps_coordinates?: string;
+  additional_images?: string[];
 };
 
 export type Review = {
@@ -124,7 +135,10 @@ async function http<T>(url: string, config: RequestInit = {}): Promise<T> {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || `Request failed with status ${response.status}`);
+    const errorMsg = data.error 
+      ? `${data.message}: ${data.error}` 
+      : (data.message || `Request failed with status ${response.status}`);
+    throw new Error(errorMsg);
   }
 
   return data as T;
@@ -136,7 +150,7 @@ export const auth = {
   login: (data: { email: string; password: string }) =>
     http<AuthResponse>(`${API_BASE}/login`, { method: 'POST', body: JSON.stringify(data) }),
 
-  register: (data: { name: string; email: string; password: string }) =>
+  register: (data: { name: string; email: string; password: string; role?: string }) =>
     http<AuthResponse>(`${API_BASE}/register`, { method: 'POST', body: JSON.stringify(data) }),
 
   verifyOtp: (data: { email: string; otp_code: string }) =>
@@ -166,13 +180,26 @@ export const user = {
 
 export const stories = {
   getPreview: () => http<{ stories: Story[] }>(`${API_BASE_STORIES}/preview`),
+  getFullStory: (id: number) => http<{ story: Story }>(`${API_BASE_STORIES}/full/${id}`),
+  add: (data: any) =>
+    http<{ message: string }>(`${API_BASE_ADMIN}/stories/addStory`, {
+      method: 'POST',
+      body: data instanceof FormData ? data : JSON.stringify(data)
+    }),
+  update: (id: number, data: any) =>
+    http<{ message: string }>(`${API_BASE_ADMIN}/stories/${id}`, {
+      method: 'PUT',
+      body: data instanceof FormData ? data : JSON.stringify(data)
+    }),
+  delete: (id: number) =>
+    http<{ message: string }>(`${API_BASE_ADMIN}/stories/${id}`, { method: 'DELETE' }),
 };
 
 // --- Sites API ---
 
 export const sites = {
   getAll: (isAdmin = false) => {
-    return http<{ sites: HeritageSite[] }>(`${API_BASE_ADMIN}/sites/getAllHeritageSites`);
+    return http<{ sites: HeritageSite[] }>(`${API_BASE_SITES}/getAllHeritageSites`);
   },
 
   add: (data: any) =>
@@ -189,6 +216,9 @@ export const sites = {
 
   delete: (id: number) =>
     http<{ message: string }>(`${API_BASE_ADMIN}/sites/${id}`, { method: 'DELETE' }),
+
+  getFullSite: (id: number) =>
+    http<{ site: HeritageSite }>(`${API_BASE_SITES}/${id}`),
 };
 
 // --- Museums API ---
@@ -241,6 +271,9 @@ export const notifications = {
   markAllRead: () =>
     http<{ message: string }>(`${API_BASE_NOTIFICATIONS}/read/all`, { method: 'PUT' }),
 
+  delete: (id: string) =>
+    http<{ message: string }>(`${API_BASE_NOTIFICATIONS}/${id}`, { method: 'DELETE' }),
+
   deleteAll: () =>
     http<{ message: string }>(`${API_BASE_NOTIFICATIONS}/all`, { method: 'DELETE' }),
 };
@@ -248,5 +281,48 @@ export const notifications = {
 
 export const admin = {
   getAllUsers: () => http<{ users: User[] }>(`${API_BASE_ADMIN}/users/getAllUsers`),
-  getAllBookings: () => http<{ bookings: any[] }>(`${BASE_URL}/api/tickets`),
+  getAllBookings: () => http<{ bookings: any[] }>(`${API_BASE_TICKETS}/my-tickets`),
+  getStats: () => http<{ totalUsers: number; totalMuseums: number; totalHeritageSites: number; totalTickets: number; totalRevenue: number }>(`${API_BASE_ADMIN_STATS}`),
+};
+
+export const tickets = {
+  getAll: () => http<{ tickets: any[] }>(`${API_BASE_TICKETS}/my-tickets`),
+  verifyQR: (data: { qr_code: string }) =>
+    http<any>(`${API_BASE_TICKETS}/verify-qr`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+// --- Payment API ---
+
+export const payment = {
+  initiateStoryKhalti: (data: { story_id: number; price: number }) =>
+    http<any>(`${API_BASE_PAYMENT}/story/khalti/initiate`, { method: 'POST', body: JSON.stringify(data) }),
+  verifyStoryKhalti: (data: { pidx: string }) =>
+    http<any>(`${API_BASE_PAYMENT}/story/khalti/verify`, { method: 'POST', body: JSON.stringify(data) }),
+  initiateStoryEsewa: (data: { story_id: number; price: number }) =>
+    http<any>(`${API_BASE_PAYMENT}/story/esewa/initiate`, { method: 'POST', body: JSON.stringify(data) }),
+  verifyStoryEsewa: (data: { encodedData: string }) =>
+    http<any>(`${API_BASE_PAYMENT}/story/esewa/verify`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Heritage Site Payment API
+  initiateSiteKhalti: (data: { site_id: number; price: number }) =>
+    http<any>(`${API_BASE_PAYMENT}/site/khalti/initiate`, { method: 'POST', body: JSON.stringify(data) }),
+  verifySiteKhalti: (data: { pidx: string }) =>
+    http<any>(`${API_BASE_PAYMENT}/site/khalti/verify`, { method: 'POST', body: JSON.stringify(data) }),
+  initiateSiteEsewa: (data: { site_id: number; price: number }) =>
+    http<any>(`${API_BASE_PAYMENT}/site/esewa/initiate`, { method: 'POST', body: JSON.stringify(data) }),
+  verifySiteEsewa: (data: { encodedData: string }) =>
+    http<any>(`${API_BASE_PAYMENT}/site/esewa/verify`, { method: 'POST', body: JSON.stringify(data) }),
+
+  getHistory: () => http<{ history: any[] }>(`${API_BASE_PAYMENT}/history`),
+  getAllHistory: () => http<{ history: any[] }>(`${API_BASE_PAYMENT}/admin/all`),
+};
+
+// --- Favorites API ---
+
+export const favorites = {
+  toggle: (siteId: number) =>
+    http<{ message: string; isFavorite: boolean }>(`${API_BASE_FAVORITES}/toggle/${siteId}`, { method: 'POST' }),
+
+  getAll: () =>
+    http<{ favorites: HeritageSite[] }>(`${API_BASE_FAVORITES}/`),
 };

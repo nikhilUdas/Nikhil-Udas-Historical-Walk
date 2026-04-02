@@ -18,8 +18,9 @@ type NotificationItem = {
 	title: string;
 	body: string;
 	time: string;
-	type?: "booking" | "reminder" | "promo" | "info";
+	type?: string;
 	read?: boolean;
+	relatedId?: number;
 };
 
 const formatRelativeTime = (dateString: string): string => {
@@ -57,8 +58,9 @@ export default function NotificationScreen() {
 				title: n.title,
 				body: n.message,
 				time: formatRelativeTime(n.created_at),
-				type: n.type as any,
+				type: n.type,
 				read: n.is_read,
+				relatedId: n.related_id,
 			}));
 			setItems(mapped);
 			setError(null);
@@ -69,12 +71,41 @@ export default function NotificationScreen() {
 		}
 	};
 
-	const handleMarkRead = async (id: string) => {
+	const handleDeleteNotification = async (id: string) => {
 		try {
-			await notifications.markRead(id);
-			setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+			await notifications.delete(id);
+			setItems((prev) => prev.filter((n) => n.id !== id));
 		} catch (err) {
-			console.error('Failed to mark as read:', err);
+			console.error('Failed to delete notification:', err);
+			Alert.alert('Error', 'Failed to delete notification');
+		}
+	};
+
+	const handleNotificationClick = async (item: NotificationItem) => {
+		if (!item.read) {
+			try {
+				await notifications.markRead(item.id);
+				setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
+			} catch (err) {
+				console.error('Failed to mark as read:', err);
+			}
+		}
+
+		// Redirection Logic
+		switch (item.type) {
+			case 'ticket_purchased':
+			case 'payment_status':
+				router.push('/mytickets');
+				break;
+			case 'site_update':
+				if (item.relatedId) router.push({ pathname: '/heritagesite', params: { id: item.relatedId } });
+				break;
+			case 'story_added':
+				if (item.relatedId) router.push({ pathname: '/stories', params: { id: item.relatedId } });
+				break;
+			default:
+				// No specific route, just mark as read
+				break;
 		}
 	};
 
@@ -87,37 +118,21 @@ export default function NotificationScreen() {
 		}
 	};
 
-	const handleClearAll = async () => {
-		Alert.alert(
-			'Delete All',
-			'Are you sure you want to delete all notifications?',
-			[
-				{ text: 'Cancel', style: 'cancel' },
-				{
-					text: 'Delete',
-					style: 'destructive',
-					onPress: async () => {
-						try {
-							await notifications.deleteAll();
-							setItems([]);
-						} catch (err) {
-							console.error('Failed to delete all:', err);
-						}
-					},
-				},
-			]
-		);
-	};
-
-	const renderIcon = (type?: NotificationItem["type"], read?: boolean) => {
+	const renderIcon = (type?: string, read?: boolean) => {
 		const color = read ? "#9ca3af" : "#b91c1c";
 		switch (type) {
+			case "ticket_purchased":
 			case "booking":
 				return <Ionicons name="ticket-outline" size={18} color={color} />;
+			case "payment_status":
+				return <Ionicons name="card-outline" size={18} color={color} />;
 			case "reminder":
 				return <Ionicons name="alarm-outline" size={18} color={color} />;
 			case "promo":
 				return <Ionicons name="pricetag-outline" size={18} color={color} />;
+			case "site_update":
+			case "story_added":
+				return <Ionicons name="star-outline" size={18} color={color} />;
 			case "info":
 			default:
 				return <Ionicons name="notifications-outline" size={18} color={color} />;
@@ -168,9 +183,6 @@ export default function NotificationScreen() {
 						<TouchableOpacity onPress={handleMarkAllRead} disabled={items.length === 0}>
 							<Text style={[styles.actionText, items.length === 0 && styles.actionDisabled]}>Mark all read</Text>
 						</TouchableOpacity>
-						<TouchableOpacity onPress={handleClearAll} disabled={items.length === 0}>
-							<Ionicons name="trash-outline" size={18} color={items.length === 0 ? "#cbd5e1" : "#b91c1c"} />
-						</TouchableOpacity>
 					</View>
 				</View>
 
@@ -185,7 +197,7 @@ export default function NotificationScreen() {
 						<TouchableOpacity
 							key={item.id}
 							style={[styles.card, item.read ? styles.cardRead : styles.cardUnread]}
-							onPress={() => handleMarkRead(item.id)}
+							onPress={() => handleNotificationClick(item)}
 							activeOpacity={0.9}
 						>
 							<View style={[styles.iconWrap, item.read ? styles.iconRead : styles.iconUnread]}>
@@ -202,7 +214,15 @@ export default function NotificationScreen() {
 									{item.body}
 								</Text>
 							</View>
-							{!item.read && <View style={styles.unreadDot} />}
+							<View style={styles.cardActions}>
+								{!item.read && <View style={styles.unreadDot} />}
+								<TouchableOpacity 
+									onPress={() => handleDeleteNotification(item.id)}
+									style={styles.deleteBtn}
+								>
+									<Ionicons name="close-circle-outline" size={20} color="#94a3b8" />
+								</TouchableOpacity>
+							</View>
 						</TouchableOpacity>
 					))
 				)}
@@ -317,7 +337,15 @@ const styles = StyleSheet.create({
 	cardTitleRead: { color: "#4b5563" },
 	cardBody: { fontSize: 13, color: "#374151" },
 	cardBodyRead: { color: "#6b7280" },
-	cardTime: { fontSize: 12, color: "#6b7280" },
+	cardTime: { fontSize: 12, color: '#6b7280' },
+	cardActions: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+	},
+	deleteBtn: {
+		padding: 4,
+	},
 	unreadDot: {
 		width: 10,
 		height: 10,

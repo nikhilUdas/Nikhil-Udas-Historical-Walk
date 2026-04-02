@@ -1,23 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Modal,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker } from 'react-native-maps';
-import { sites } from "../api";
+import MapView, { Marker } from "react-native-maps";
+import { WebView } from "react-native-webview";
+import { favorites, payment as paymentApi, sites } from "../api";
 import { getImageUrl } from "../utils/image";
 
 import { useLanguage } from "../hooks/i18n";
@@ -27,41 +28,51 @@ function HeritageSiteScreen() {
   const [heritage, setHeritage] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [userType, setUserType] = useState<string | null>(null);
   const [showHeritageSiteForm, setShowHeritageSiteForm] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [heritageSiteForm, setHeritageSiteForm] = useState({
-    name: '',
-    description: '',
-    gps_coordinates: '',
-    photo_url: ''
+    name: "",
+    description: "",
+    gps_coordinates: "",
   });
   const [submittingHeritageSite, setSubmittingHeritageSite] = useState(false);
-  const [editingHeritageSiteId, setEditingHeritageSiteId] = useState<number | null>(null);
+  const [editingHeritageSiteId, setEditingHeritageSiteId] = useState<
+    number | null
+  >(null);
   const [showMapModal, setShowMapModal] = useState(false);
-  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearchQuery, setMapSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState({
     latitude: 27.7172,
-    longitude: 85.3240
+    longitude: 85.324,
   });
   const mapRef = React.useRef<MapView>(null);
-  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isAdmin = userType === 'admin';
+  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const isAdmin = userType === "admin";
+
+  const [selectedSite, setSelectedSite] = useState<any>(null);
+  const [showSiteModal, setShowSiteModal] = useState(false);
+
+  // Payment State
+  const [paying, setPaying] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showKhalti, setShowKhalti] = useState(false);
+  const [showEsewa, setShowEsewa] = useState(false);
+  const [khaltiUrl, setKhaltiUrl] = useState<string | null>(null);
+  const [esewaParams, setEsewaParams] = useState<any>(null);
+  const [pidx, setPidx] = useState<string | null>(null);
+  const [favoriteSiteIds, setFavoriteSiteIds] = useState<Set<number>>(
+    new Set(),
+  );
 
   useEffect(() => {
     const fetchUserType = async () => {
-      const type = await AsyncStorage.getItem('userType');
-      setUserType(type);
-    };
-    fetchUserType();
-  }, []);
-
-  useEffect(() => {
-    const fetchUserType = async () => {
-      const type = await AsyncStorage.getItem('userType');
+      const type = await AsyncStorage.getItem("userType");
       setUserType(type);
     };
     fetchUserType();
@@ -71,7 +82,7 @@ function HeritageSiteScreen() {
     try {
       const data = await sites.getAll(!!isAdmin);
       setHeritage(data.sites || []);
-      console.log('Heritage sites refreshed successfully');
+      console.log("Heritage sites refreshed successfully");
     } catch (err) {
       console.error("Failed to refresh heritage sites:", err);
     }
@@ -83,6 +94,7 @@ function HeritageSiteScreen() {
       setError("");
       try {
         const data = await sites.getAll(!!isAdmin);
+        console.log(data);
         setHeritage(data.sites || []);
       } catch (err: any) {
         setError(err.message || "Failed to fetch heritage sites");
@@ -93,10 +105,67 @@ function HeritageSiteScreen() {
     fetchHeritageSites();
   }, []);
 
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      if (userType === "user") {
+        try {
+          const data = await favorites.getAll();
+          const ids = new Set(data.favorites.map((s: any) => s.site_id));
+          setFavoriteSiteIds(ids);
+        } catch (err) {
+          console.error("Failed to fetch favorites:", err);
+        }
+      }
+    };
+    fetchFavorites();
+  }, [userType]);
+
+  const toggleFavoriteSite = async (siteId: number) => {
+    if (userType !== "user") {
+      Alert.alert(
+        t("loginRequired") || "Login Required",
+        "Please login as a user to favorite sites.",
+      );
+      return;
+    }
+
+    // Optimistic UI update
+    setFavoriteSiteIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(siteId)) {
+        newSet.delete(siteId);
+      } else {
+        newSet.add(siteId);
+      }
+      return newSet;
+    });
+
+    try {
+      await favorites.toggle(siteId);
+    } catch (err: any) {
+      console.error("Failed to toggle favorite:", err);
+      // Rollback on error
+      setFavoriteSiteIds((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(siteId)) {
+          newSet.delete(siteId);
+        } else {
+          newSet.add(siteId);
+        }
+        return newSet;
+      });
+      Alert.alert("Error", err.message || "Failed to toggle favorite");
+    }
+  };
+  console.log("HERITAGE", heritage);
+
   const filteredHeritage = heritage.filter((item) => {
-    const matchesSearch = searchQuery.trim() === '' ||
-      (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.description && item.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesSearch =
+      searchQuery.trim() === "" ||
+      (item.name &&
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.description &&
+        item.description.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesSearch;
   });
 
@@ -108,9 +177,9 @@ function HeritageSiteScreen() {
         const lat = parseFloat(match[1]);
         const lng = parseFloat(match[2]);
         // Navigate to map screen with coordinates
-        const router = require('expo-router').router;
+        const router = require("expo-router").router;
         router.push({
-          pathname: '/map',
+          pathname: "/map",
           params: {
             latitude: lat.toString(),
             longitude: lng.toString(),
@@ -118,11 +187,11 @@ function HeritageSiteScreen() {
           },
         });
       } else {
-        Alert.alert('Error', 'Invalid coordinates format');
+        Alert.alert("Error", "Invalid coordinates format");
       }
     } catch (error) {
-      console.error('Navigation error:', error);
-      Alert.alert('Error', 'Could not open map navigation');
+      console.error("Navigation error:", error);
+      Alert.alert("Error", "Could not open map navigation");
     }
   };
 
@@ -136,42 +205,194 @@ function HeritageSiteScreen() {
         const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
         Linking.openURL(url);
       } else {
-        Alert.alert('Error', 'Invalid coordinates format');
+        Alert.alert("Error", "Invalid coordinates format");
       }
     } catch (error) {
-      console.error('Google Maps error:', error);
-      Alert.alert('Error', 'Could not open Google Maps');
+      console.error("Google Maps error:", error);
+      Alert.alert("Error", "Could not open Google Maps");
+    }
+  };
+
+  const openSite = async (site: any) => {
+    if (site.is_unlocked || isAdmin) {
+      try {
+        setLoading(true);
+        const siteId = site.site_id || site.id;
+        const data = await sites.getFullSite(siteId);
+        setSelectedSite(data.site);
+        setShowSiteModal(true);
+      } catch (err: any) {
+        Alert.alert("Error", err.message || "Could not fetch full site");
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setSelectedSite(site);
+      setShowPaymentModal(true);
+    }
+  };
+
+  // --- Payment Handlers ---
+  const handleKhaltiPay = async () => {
+    if (!selectedSite) return;
+    setPaying(true);
+    try {
+      const siteId = selectedSite.site_id || selectedSite.id;
+      const res = await paymentApi.initiateSiteKhalti({
+        site_id: siteId,
+        price: 50,
+      });
+
+      if (res.payment_url) {
+        setKhaltiUrl(res.payment_url);
+        setPidx(res.pidx);
+        setShowPaymentModal(false);
+        setShowKhalti(true);
+      } else {
+        throw new Error("Failed to get Khalti payment URL");
+      }
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert("Error", err.message || "Could not initiate Khalti payment.");
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const handleEsewaPay = async () => {
+    if (!selectedSite) return;
+    setPaying(true);
+    try {
+      const siteId = selectedSite.site_id || selectedSite.id;
+      const res = await paymentApi.initiateSiteEsewa({
+        site_id: siteId,
+        price: 50,
+      });
+
+      if (res.signature) {
+        setEsewaParams(res);
+        setShowPaymentModal(false);
+        setShowEsewa(true);
+      } else {
+        throw new Error("Failed to get eSewa payment parameters");
+      }
+    } catch (err: any) {
+      console.error(err);
+      Alert.alert("Error", err.message || "Could not initiate eSewa payment.");
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const onKhaltiStateChange = async (webViewState: any) => {
+    const { url } = webViewState;
+    if (url.includes("success.historicalwalk.com/khalti")) {
+      setShowKhalti(false);
+      setPaying(true);
+
+      try {
+        if (pidx) {
+          await paymentApi.verifySiteKhalti({ pidx });
+          await refreshHeritageSites();
+          // Auto-open the full content modal
+          if (selectedSite) {
+            const siteId = selectedSite.site_id || selectedSite.id;
+            const data = await sites.getFullSite(siteId);
+            setSelectedSite(data.site);
+            setShowSiteModal(true);
+          }
+        }
+      } catch (err: any) {
+        Alert.alert("Khalti Payment error", "Could not verify Khalti payment.");
+      } finally {
+        setPaying(false);
+      }
+    }
+  };
+
+  const onEsewaStateChange = async (webViewState: any) => {
+    const { url } = webViewState;
+    if (url.includes("failure.historicalwalk.com/esewa")) {
+      setShowEsewa(false);
+      Alert.alert("Payment Failed", "eSewa transaction failed.");
+      return;
+    }
+
+    if (url.includes("success.historicalwalk.com/esewa")) {
+      const urlParams = url.split("?")[1];
+      const dataParam = urlParams
+        ?.split("&")
+        .find((p: string) => p.startsWith("data="))
+        ?.split("=")[1];
+
+      if (dataParam) {
+        setShowEsewa(false);
+        setPaying(true);
+        try {
+          await paymentApi.verifySiteEsewa({
+            encodedData: decodeURIComponent(dataParam),
+          });
+          await refreshHeritageSites();
+          // Auto-open the full content modal
+          if (selectedSite) {
+            const siteId = selectedSite.site_id || selectedSite.id;
+            const data = await sites.getFullSite(siteId);
+            setSelectedSite(data.site);
+            setShowSiteModal(true);
+          }
+        } catch (err: any) {
+          Alert.alert("eSewa Payment error", "Could not verify eSewa payment.");
+        } finally {
+          setPaying(false);
+        }
+      }
     }
   };
 
   const pickHeritageSiteImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (permissionResult.granted === false) {
-      Alert.alert('Permission Required', 'You need to grant camera roll permissions to upload images.');
+      Alert.alert(
+        "Permission Required",
+        "You need to grant camera roll permissions to upload images.",
+      );
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
-      setHeritageSiteForm({ ...heritageSiteForm, photo_url: result.assets[0].uri });
+    if (!result.canceled && result.assets) {
+      const newUris = result.assets.map((asset) => asset.uri);
+      setSelectedImages((prev) => [...prev, ...newUris].slice(0, 5));
     }
+  };
+
+  const removeHeritageSiteImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const submitHeritageSite = async () => {
     if (!isAdmin) {
-      Alert.alert('Restricted', 'Only admins can manage heritage sites.');
+      Alert.alert("Restricted", "Only admins can manage heritage sites.");
       return;
     }
-    if (!heritageSiteForm.name || !heritageSiteForm.description || !heritageSiteForm.photo_url || !heritageSiteForm.gps_coordinates) {
-      Alert.alert('Error', 'Please fill in all required fields (Name, Description, Photo URL, GPS Coordinates)');
+    if (
+      !heritageSiteForm.name ||
+      !heritageSiteForm.description ||
+      selectedImages.length === 0 ||
+      !heritageSiteForm.gps_coordinates
+    ) {
+      Alert.alert(
+        "Error",
+        "Please fill in all required fields (Name, Description, Photo, GPS Coordinates)",
+      );
       return;
     }
 
@@ -180,24 +401,29 @@ function HeritageSiteScreen() {
       const isEditing = editingHeritageSiteId !== null;
 
       const formData = new FormData();
-      formData.append('name', heritageSiteForm.name);
-      formData.append('description', heritageSiteForm.description);
-      formData.append('gps_coordinates', heritageSiteForm.gps_coordinates);
-      formData.append('photo_url', heritageSiteForm.photo_url); // Keep for backwards compatibility or fallback
+      formData.append("name", heritageSiteForm.name);
+      formData.append("description", heritageSiteForm.description);
+      formData.append("gps_coordinates", heritageSiteForm.gps_coordinates);
 
-      // If a new image was picked (it would be in heritageSiteForm.photo_url or selectedImage)
-      // Check if photo_url is a file URI
-      if (heritageSiteForm.photo_url && heritageSiteForm.photo_url.startsWith('file://')) {
-        const localUri = heritageSiteForm.photo_url;
-        const filename = localUri.split('/').pop() || 'photo.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
+      if (selectedImages && selectedImages.length > 0) {
+        selectedImages.forEach((uri, index) => {
+          const filename = uri.split("/").pop() || `site_${index}.jpg`;
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : "image/jpeg";
 
-        // Append image as file. Backend middleware 'upload.single("image")' expects field name "image"
-        formData.append('image', { uri: localUri, name: filename, type } as any);
+          // @ts-ignore
+          formData.append("images", {
+            uri,
+            name: filename,
+            type,
+          });
+        });
       }
 
-      console.log('Submitting heritage site FormData:', { isEditing, editingHeritageSiteId });
+      console.log("Submitting heritage site FormData:", {
+        isEditing,
+        editingHeritageSiteId,
+      });
 
       let data;
       if (isEditing && editingHeritageSiteId) {
@@ -206,15 +432,22 @@ function HeritageSiteScreen() {
         data = await sites.add(formData);
       }
 
-      Alert.alert('Success', isEditing ? 'Heritage site updated successfully' : 'Heritage site added successfully');
-      setHeritageSiteForm({ name: '', description: '', gps_coordinates: '', photo_url: '' });
-      setSelectedImage(null);
+      Alert.alert("Success", isEditing ? "Site updated" : "Site added");
+      setHeritageSiteForm({
+        name: "",
+        description: "",
+        gps_coordinates: "",
+      });
+      setSelectedImages([]);
       setEditingHeritageSiteId(null);
       setShowHeritageSiteForm(false);
       await refreshHeritageSites();
     } catch (error: any) {
-      console.error('Submit error:', error);
-      Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+      console.error("Submit error:", error);
+      Alert.alert(
+        "Error",
+        error.message || "Something went wrong. Please try again.",
+      );
     } finally {
       setSubmittingHeritageSite(false);
     }
@@ -222,40 +455,53 @@ function HeritageSiteScreen() {
 
   const openAddHeritageSiteForm = () => {
     if (!isAdmin) {
-      Alert.alert('Restricted', 'Only admins can add heritage sites.');
+      Alert.alert("Restricted", "Only admins can add heritage sites.");
       return;
     }
     setEditingHeritageSiteId(null);
     setShowHeritageSiteForm(true);
-    setSelectedImage(null);
-    setSelectedCoords({ latitude: 27.7172, longitude: 85.3240 });
-    setHeritageSiteForm({ name: '', description: '', gps_coordinates: '', photo_url: '' });
+    setSelectedImages([]);
+    setSelectedCoords({ latitude: 27.7172, longitude: 85.324 });
+    setHeritageSiteForm({
+      name: "",
+      description: "",
+      gps_coordinates: "",
+    });
   };
 
   const openEditHeritageSiteForm = (site: any) => {
     if (!isAdmin) {
-      Alert.alert('Restricted', 'Only admins can edit heritage sites.');
+      Alert.alert("Restricted", "Only admins can edit heritage sites.");
       return;
     }
     const siteId = site.site_id || site.id;
-    console.log('Opening edit form for heritage site:', { siteId, site });
+    console.log("Opening edit form for heritage site:", { siteId, site });
 
-    setEditingHeritageSiteId(siteId);
+    setEditingHeritageSiteId(site.site_id);
     setShowHeritageSiteForm(true);
-    setSelectedImage(getImageUrl(site.image_url || site.photo_url || site.photoUrl || site.image) || null);
+
+    // Support multiple images for editing
+    const mainImage = getImageUrl(site.image_url || site.photo_url);
+    const existingImages = site.additional_images || [];
+    const allImages = mainImage
+      ? [mainImage, ...existingImages]
+      : existingImages;
+    setSelectedImages(allImages);
+
     setHeritageSiteForm({
-      name: site.name || '',
-      description: site.description || '',
-      gps_coordinates: site.gps_coordinates || '',
-      photo_url: getImageUrl(site.image_url || site.photo_url || site.photoUrl || site.image) || ''
+      name: site.name || "",
+      description: site.description || "",
+      gps_coordinates: site.gps_coordinates || "",
     });
     // Parse coordinates for map
     if (site.gps_coordinates) {
-      const match = site.gps_coordinates.match(/(\d+\.\d+)°[NS],\s*(\d+\.\d+)°[EW]/);
+      const match = site.gps_coordinates.match(
+        /(\d+\.\d+)°[NS],\s*(\d+\.\d+)°[EW]/,
+      );
       if (match) {
         setSelectedCoords({
           latitude: parseFloat(match[1]),
-          longitude: parseFloat(match[2])
+          longitude: parseFloat(match[2]),
         });
       }
     }
@@ -263,32 +509,38 @@ function HeritageSiteScreen() {
 
   const deleteHeritageSite = async (site: any) => {
     if (!isAdmin) {
-      Alert.alert('Restricted', 'Only admins can delete heritage sites.');
+      Alert.alert("Restricted", "Only admins can delete heritage sites.");
       return;
     }
     Alert.alert(
-      'Confirm Delete',
-      'Are you sure you want to delete this heritage site? This action cannot be undone.',
+      "Confirm Delete",
+      "Are you sure you want to delete this heritage site? This action cannot be undone.",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             try {
               const siteId = site.site_id || site.id;
-              console.log('Attempting to delete heritage site:', { siteId, site });
+              console.log("Attempting to delete heritage site:", {
+                siteId,
+                site,
+              });
 
               await sites.delete(siteId);
-              Alert.alert('Success', 'Heritage site deleted successfully');
+              Alert.alert("Success", "Heritage site deleted successfully");
               await refreshHeritageSites();
             } catch (error: any) {
-              console.error('Delete error:', error);
-              Alert.alert('Error', error.message || 'Failed to delete heritage site');
+              console.error("Delete error:", error);
+              Alert.alert(
+                "Error",
+                error.message || "Failed to delete heritage site",
+              );
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   };
 
@@ -319,28 +571,28 @@ function HeritageSiteScreen() {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?` +
-        `format=json&` +
-        `q=${encodeURIComponent(query)}&` +
-        `countrycodes=np&` +
-        `limit=8&` +
-        `addressdetails=1`,
+          `format=json&` +
+          `q=${encodeURIComponent(query)}&` +
+          `countrycodes=np&` +
+          `limit=8&` +
+          `addressdetails=1`,
         {
           headers: {
-            'User-Agent': 'HistoricalWalkApp/1.0',
-            'Accept': 'application/json'
-          }
-        }
+            "User-Agent": "HistoricalWalkApp/1.0",
+            Accept: "application/json",
+          },
+        },
       );
 
       if (!response.ok) {
-        console.error('API Error:', response.status, response.statusText);
+        console.error("API Error:", response.status, response.statusText);
         setSearchResults([]);
         return;
       }
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.error('Invalid content type:', contentType);
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Invalid content type:", contentType);
         setSearchResults([]);
         return;
       }
@@ -348,7 +600,7 @@ function HeritageSiteScreen() {
       const data = await response.json();
       setSearchResults(data || []);
     } catch (error) {
-      console.error('Search error:', error);
+      console.error("Search error:", error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -373,14 +625,17 @@ function HeritageSiteScreen() {
       longitude: parseFloat(item.lon),
     };
     setSelectedCoords(newCoords);
-    setMapSearchQuery(item.display_name || '');
+    setMapSearchQuery(item.display_name || "");
     setSearchResults([]);
-    mapRef.current?.animateToRegion({
-      latitude: newCoords.latitude,
-      longitude: newCoords.longitude,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
-    }, 1000);
+    mapRef.current?.animateToRegion(
+      {
+        latitude: newCoords.latitude,
+        longitude: newCoords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      },
+      1000,
+    );
   };
 
   if (loading) {
@@ -406,9 +661,11 @@ function HeritageSiteScreen() {
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.title}>Heritage Sites</Text>
-              <Text style={styles.description}>Explore Nepal's rich cultural treasures</Text>
+              <Text style={styles.description}>
+                Explore Nepal's rich cultural treasures
+              </Text>
             </View>
-            {userType === 'admin' && (
+            {userType === "admin" && (
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={openAddHeritageSiteForm}
@@ -429,8 +686,8 @@ function HeritageSiteScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-          {searchQuery !== '' && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+          {searchQuery !== "" && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
               <Ionicons name="close" size={18} color="#9aa3b5" />
             </TouchableOpacity>
           )}
@@ -440,7 +697,9 @@ function HeritageSiteScreen() {
           <Text style={styles.emptyText}>No heritage sites found</Text>
         ) : (
           filteredHeritage.map((site, idx) => {
-            const imageUri = getImageUrl(site.image_url || site.photo_url || site.photoUrl || site.image);
+            const imageUri = getImageUrl(
+              site.image_url || site.photo_url || site.photoUrl || site.image,
+            );
             return (
               <View key={idx} style={styles.siteCard}>
                 {imageUri ? (
@@ -451,18 +710,84 @@ function HeritageSiteScreen() {
                   />
                 ) : (
                   <View style={styles.siteImagePlaceholder}>
-                    <Text style={styles.placeholderText}>No image available</Text>
+                    <Text style={styles.placeholderText}>
+                      No image available
+                    </Text>
                   </View>
                 )}
                 <View style={styles.siteContent}>
                   <Text style={styles.siteName}>{site.name}</Text>
                   <Text style={styles.siteLocation}>{site.location}</Text>
                   <Text style={styles.siteDescription}>{site.description}</Text>
+                  {site.has_full_content && !isAdmin && (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 6,
+                        backgroundColor: site.is_unlocked
+                          ? "#2563eb"
+                          : "#c71f37",
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        alignSelf: "flex-start",
+                      }}
+                      activeOpacity={0.9}
+                      onPress={() => openSite(site)}
+                    >
+                      <Ionicons
+                        name={site.is_unlocked ? "book" : "lock-closed"}
+                        size={12}
+                        color="#fff"
+                      />
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {site.is_unlocked ? "Read Now" : "Read More (Rs. 50)"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {site.has_full_content && isAdmin && (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 6,
+                        backgroundColor: "#2563eb",
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        alignSelf: "flex-start",
+                      }}
+                      activeOpacity={0.9}
+                      onPress={() => openSite(site)}
+                    >
+                      <Ionicons name="book" size={12} color="#fff" />
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Read Content
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   {site.gps_coordinates ? (
                     <View style={styles.navigationButtons}>
                       <TouchableOpacity
                         style={styles.navButton}
-                        onPress={() => openMapNavigation(site.gps_coordinates, site.name)}
+                        onPress={() =>
+                          openMapNavigation(site.gps_coordinates, site.name)
+                        }
                       >
                         <Ionicons name="navigate" size={16} color="#2563EB" />
                         <Text style={styles.navButtonText}>In-App Map</Text>
@@ -471,22 +796,58 @@ function HeritageSiteScreen() {
                         style={[styles.navButton, styles.googleMapButton]}
                         onPress={() => openGoogleMaps(site.gps_coordinates)}
                       >
-                        <Ionicons name="logo-google" size={16} color="#059669" />
-                        <Text style={styles.googleMapButtonText}>Google Maps</Text>
+                        <Ionicons
+                          name="logo-google"
+                          size={16}
+                          color="#059669"
+                        />
+                        <Text style={styles.googleMapButtonText}>
+                          Google Maps
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   ) : null}
-                  {userType === 'admin' && (
+                  {userType === "admin" && (
                     <View style={styles.footerRow}>
-                      <TouchableOpacity style={[styles.bookButton, styles.editButton]} activeOpacity={0.9} onPress={() => openEditHeritageSiteForm(site)}>
+                      <TouchableOpacity
+                        style={[styles.bookButton, styles.editButton]}
+                        activeOpacity={0.9}
+                        onPress={() => openEditHeritageSiteForm(site)}
+                      >
                         <Ionicons name="pencil" size={16} color="#fff" />
                         <Text style={styles.bookButtonText}>Edit</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.bookButton, styles.deleteButton]} activeOpacity={0.9} onPress={() => deleteHeritageSite(site)}>
+                      <TouchableOpacity
+                        style={[styles.bookButton, styles.deleteButton]}
+                        activeOpacity={0.9}
+                        onPress={() => deleteHeritageSite(site)}
+                      >
                         <Ionicons name="trash" size={16} color="#fff" />
                         <Text style={styles.bookButtonText}>Delete</Text>
                       </TouchableOpacity>
                     </View>
+                  )}
+                  {userType === "user" && (
+                    <TouchableOpacity
+                      style={styles.favoriteButton}
+                      onPress={() =>
+                        toggleFavoriteSite(site.site_id || site.id)
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          favoriteSiteIds.has(site.site_id || site.id)
+                            ? "heart"
+                            : "heart-outline"
+                        }
+                        size={24}
+                        color={
+                          favoriteSiteIds.has(site.site_id || site.id)
+                            ? "#DC2626"
+                            : "#fff"
+                        }
+                      />
+                    </TouchableOpacity>
                   )}
                 </View>
               </View>
@@ -504,29 +865,38 @@ function HeritageSiteScreen() {
         <SafeAreaView style={styles.formSafeArea}>
           <ScrollView contentContainerStyle={styles.formContainer}>
             <View style={styles.formHeader}>
-              <Text style={styles.formTitle}>{editingHeritageSiteId ? t('edit') : t('heritageSites')}</Text>
+              <Text style={styles.formTitle}>
+                {editingHeritageSiteId ? t("edit") : t("heritageSites")}
+              </Text>
               <TouchableOpacity onPress={() => setShowHeritageSiteForm(false)}>
                 <Ionicons name="close-circle" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>{t('name')} *</Text>
+              <Text style={styles.label}>{t("name")} *</Text>
               <TextInput
                 style={styles.formInput}
                 placeholder="e.g., Pashupatinath Temple"
                 value={heritageSiteForm.name}
-                onChangeText={(text) => setHeritageSiteForm({ ...heritageSiteForm, name: text })}
+                onChangeText={(text) =>
+                  setHeritageSiteForm({ ...heritageSiteForm, name: text })
+                }
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>{t('description')} *</Text>
+              <Text style={styles.label}>{t("description")} *</Text>
               <TextInput
                 style={[styles.formInput, styles.textArea]}
                 placeholder="Describe the heritage site..."
                 value={heritageSiteForm.description}
-                onChangeText={(text) => setHeritageSiteForm({ ...heritageSiteForm, description: text })}
+                onChangeText={(text) =>
+                  setHeritageSiteForm({
+                    ...heritageSiteForm,
+                    description: text,
+                  })
+                }
                 multiline
                 numberOfLines={4}
               />
@@ -539,36 +909,54 @@ function HeritageSiteScreen() {
                 onPress={() => setShowMapModal(true)}
               >
                 <Ionicons name="location" size={20} color="#6B7280" />
-                <Text style={heritageSiteForm.gps_coordinates ? styles.mapInputText : styles.mapInputPlaceholder}>
-                  {heritageSiteForm.gps_coordinates || 'Tap to select location on map'}
+                <Text
+                  style={
+                    heritageSiteForm.gps_coordinates
+                      ? styles.mapInputText
+                      : styles.mapInputPlaceholder
+                  }
+                >
+                  {heritageSiteForm.gps_coordinates ||
+                    "Tap to select location on map"}
                 </Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>{t('siteImage')}</Text>
+              <Text style={styles.label}>Site Images (Up to 5)</Text>
               <TouchableOpacity
                 style={styles.imagePickerButton}
                 onPress={pickHeritageSiteImage}
               >
-                {selectedImage ? (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image
-                      source={{ uri: selectedImage }}
-                      style={styles.imagePreview}
-                    />
-                    <View style={styles.changeImageOverlay}>
-                      <Ionicons name="camera" size={24} color="#fff" />
-                      <Text style={styles.changeImageText}>{t('changeImage')}</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.imagePickerPlaceholder}>
-                    <Ionicons name="image" size={32} color="#9CA3AF" />
-                    <Text style={styles.imagePickerText}>{t('tapToSelect')}</Text>
-                  </View>
-                )}
+                <View style={styles.imagePickerPlaceholder}>
+                  <Ionicons name="images-outline" size={32} color="#9CA3AF" />
+                  <Text style={styles.imagePickerText}>{t("tapToSelect")}</Text>
+                </View>
               </TouchableOpacity>
+
+              {selectedImages.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.imagePreviewList}
+                >
+                  {selectedImages.map((uri, index) => (
+                    <View key={index} style={styles.previewImageWrapper}>
+                      <Image source={{ uri }} style={styles.previewThumbnail} />
+                      <TouchableOpacity
+                        style={styles.removeImageIcon}
+                        onPress={() => removeHeritageSiteImage(index)}
+                      >
+                        <Ionicons
+                          name="close-circle"
+                          size={20}
+                          color="#DC2626"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
             </View>
 
             <View style={styles.formActions}>
@@ -584,11 +972,196 @@ function HeritageSiteScreen() {
                 disabled={submittingHeritageSite}
               >
                 <Text style={styles.submitButtonText}>
-                  {submittingHeritageSite ? (editingHeritageSiteId ? 'Updating...' : 'Submitting...') : (editingHeritageSiteId ? 'Update Site' : 'Add Site')}
+                  {submittingHeritageSite
+                    ? editingHeritageSiteId
+                      ? "Updating..."
+                      : "Submitting..."
+                    : editingHeritageSiteId
+                      ? "Update Site"
+                      : "Add Site"}
                 </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Payment Selection Modal */}
+      <Modal visible={showPaymentModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.paymentModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Unlock Site Content</Text>
+              <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.paymentDescription}>
+              Unlock the full description of "{selectedSite?.name}" for Rs. 50.
+              Pay once and keep it forever!
+            </Text>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.payButton,
+                  styles.khaltiButtonOutline,
+                  paying && styles.disabledButton,
+                ]}
+                onPress={handleKhaltiPay}
+                disabled={paying}
+              >
+                <Image
+                  source={require("../assets/images/khalti-logo.png")}
+                  style={styles.paymentLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.payTextKhalti}>
+                  {paying ? "Processing..." : `Pay with Khalti (Rs. 50)`}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.payButton,
+                  styles.esewaButtonOutline,
+                  paying && styles.disabledButton,
+                ]}
+                onPress={handleEsewaPay}
+                disabled={paying}
+              >
+                <Image
+                  source={require("../assets/images/esewa-logo.png")}
+                  style={styles.paymentLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.payTextEsewa}>Pay with eSewa</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Read Site Full Content Modal */}
+      <Modal visible={showSiteModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.siteModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{selectedSite?.name}</Text>
+              <TouchableOpacity onPress={() => setShowSiteModal(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+            >
+              {selectedSite && (
+                <>
+                  {/* Image Carousel */}
+                  {selectedSite.image_url ||
+                  selectedSite.photo_url ||
+                  (selectedSite.additional_images &&
+                    selectedSite.additional_images.length > 0) ? (
+                    <View style={{ marginBottom: 16 }}>
+                      <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        style={{ height: 200, borderRadius: 12 }}
+                      >
+                        {[
+                          getImageUrl(
+                            selectedSite.image_url || selectedSite.photo_url,
+                          ),
+                          ...(selectedSite.additional_images?.map(
+                            (img: string) => getImageUrl(img),
+                          ) || []),
+                        ]
+                          .filter(Boolean)
+                          .map((uri, idx) => (
+                            <Image
+                              key={idx}
+                              source={{ uri }}
+                              style={{
+                                width: 330,
+                                height: 200,
+                                borderRadius: 12,
+                              }}
+                              resizeMode="cover"
+                            />
+                          ))}
+                      </ScrollView>
+                      <View style={styles.carouselIndicator}>
+                        <Text style={styles.carouselIndicatorText}>
+                          Scroll for more images →
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  <Text
+                    style={{ fontSize: 16, lineHeight: 24, color: "#374151" }}
+                  >
+                    {selectedSite.full_description || selectedSite.description}
+                  </Text>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Khalti WebView Modal */}
+      <Modal visible={showKhalti} animationType="slide">
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Khalti Payment</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowKhalti(false);
+                setPaying(false);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#0f172a" />
+            </TouchableOpacity>
+          </View>
+          {khaltiUrl && (
+            <WebView
+              source={{ uri: khaltiUrl }}
+              onNavigationStateChange={onKhaltiStateChange}
+              style={{ flex: 1 }}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      {/* eSewa WebView Modal */}
+      <Modal visible={showEsewa} animationType="slide">
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>eSewa Payment</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowEsewa(false);
+                setPaying(false);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#0f172a" />
+            </TouchableOpacity>
+          </View>
+          {esewaParams && (
+            <WebView
+              source={{
+                uri: esewaParams.gateway_url,
+                method: "POST",
+                body: `amount=${esewaParams.amount}&tax_amount=${esewaParams.tax_amount || 0}&total_amount=${esewaParams.total_amount}&transaction_uuid=${esewaParams.transaction_uuid}&product_code=${esewaParams.product_code}&product_service_charge=${esewaParams.product_service_charge || 0}&product_delivery_charge=${esewaParams.product_delivery_charge || 0}&success_url=${encodeURIComponent(esewaParams.success_url)}&failure_url=${encodeURIComponent(esewaParams.failure_url)}&signed_field_names=${esewaParams.signed_field_names}&signature=${encodeURIComponent(esewaParams.signature)}`,
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+              }}
+              onNavigationStateChange={onEsewaStateChange}
+              style={{ flex: 1 }}
+            />
+          )}
         </SafeAreaView>
       </Modal>
 
@@ -615,7 +1188,7 @@ function HeritageSiteScreen() {
                 placeholderTextColor="#9CA3AF"
                 value={mapSearchQuery}
                 onChangeText={handleSearchInput}
-                onSubmitEditing={() => { }}
+                onSubmitEditing={() => {}}
                 returnKeyType="search"
                 autoCapitalize="words"
                 autoCorrect={false}
@@ -635,14 +1208,18 @@ function HeritageSiteScreen() {
               showsVerticalScrollIndicator={false}
             >
               {searchResults.map((item, idx) => {
-                const placeName = item.name || item.address?.city || item.address?.town || 'Unknown';
+                const placeName =
+                  item.name ||
+                  item.address?.city ||
+                  item.address?.town ||
+                  "Unknown";
                 const addressParts = [];
 
                 if (item.address) {
                   if (item.address.city) addressParts.push(item.address.city);
                   if (item.address.state) addressParts.push(item.address.state);
                 }
-                const addressText = addressParts.join(', ');
+                const addressText = addressParts.join(", ");
 
                 return (
                   <TouchableOpacity
@@ -659,7 +1236,10 @@ function HeritageSiteScreen() {
                         {placeName}
                       </Text>
                       {addressText && (
-                        <Text style={styles.suggestionSubtext} numberOfLines={1}>
+                        <Text
+                          style={styles.suggestionSubtext}
+                          numberOfLines={1}
+                        >
                           {addressText}
                         </Text>
                       )}
@@ -702,7 +1282,8 @@ function HeritageSiteScreen() {
             <View style={styles.coordsDisplay}>
               <Text style={styles.coordsLabel}>Selected Coordinates:</Text>
               <Text style={styles.coordsValue}>
-                {selectedCoords.latitude.toFixed(4)}°N, {selectedCoords.longitude.toFixed(4)}°E
+                {selectedCoords.latitude.toFixed(4)}°N,{" "}
+                {selectedCoords.longitude.toFixed(4)}°E
               </Text>
             </View>
             <TouchableOpacity
@@ -710,7 +1291,9 @@ function HeritageSiteScreen() {
               onPress={handleSelectLocation}
             >
               <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.selectLocationButtonText}>Confirm Location</Text>
+              <Text style={styles.selectLocationButtonText}>
+                Confirm Location
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -734,10 +1317,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
   },
   title: {
     fontSize: 22,
@@ -749,18 +1332,18 @@ const styles = StyleSheet.create({
     color: "#4b5563",
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#16A34A',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#16A34A",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
   },
   addButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   searchRow: {
     flexDirection: "row",
@@ -781,7 +1364,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#F9FAFB',
+    color: "#F9FAFB",
   },
   mainSearchInput: {
     color: "#000000",
@@ -805,6 +1388,14 @@ const styles = StyleSheet.create({
   siteImage: {
     width: "100%",
     height: 170,
+  },
+  favoriteButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 20,
+    padding: 6,
   },
   siteImagePlaceholder: {
     width: "100%",
@@ -836,6 +1427,76 @@ const styles = StyleSheet.create({
     color: "#374151",
     lineHeight: 18,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  paymentModalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  siteModalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+    maxHeight: "90%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    paddingBottom: 12,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+  },
+  paymentDescription: {
+    fontSize: 15,
+    color: "#475569",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  buttonContainer: {
+    gap: 12,
+  },
+  payButton: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+  },
+  khaltiButtonOutline: {
+    borderColor: "#b0191e",
+  },
+  esewaButtonOutline: {
+    borderColor: "#0f9d58",
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  paymentLogo: {
+    width: 24,
+    height: 24,
+  },
+  payTextKhalti: { color: "#b0191e", fontSize: 15, fontWeight: "700" },
+  payTextEsewa: { color: "#0f9d58", fontSize: 15, fontWeight: "700" },
   coordinatesRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -848,39 +1509,39 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   navigationButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 8,
   },
   navButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: "#BFDBFE",
   },
   navButtonText: {
     fontSize: 13,
-    color: '#2563EB',
-    fontWeight: '600',
+    color: "#2563EB",
+    fontWeight: "600",
   },
   googleMapButton: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
   },
   googleMapButtonText: {
     fontSize: 13,
-    color: '#059669',
-    fontWeight: '600',
+    color: "#059669",
+    fontWeight: "600",
   },
   footerRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 12,
   },
@@ -895,18 +1556,18 @@ const styles = StyleSheet.create({
   bookButtonText: {
     color: "#fff",
     fontSize: 13,
-    fontWeight: "700"
+    fontWeight: "700",
   },
   editButton: {
     backgroundColor: "#2563EB",
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
   },
   deleteButton: {
     backgroundColor: "#DC2626",
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
   },
   emptyText: {
@@ -922,106 +1583,106 @@ const styles = StyleSheet.create({
   },
   formSafeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   formContainer: {
     padding: 16,
     gap: 12,
   },
   formHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   formTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   formGroup: {
     gap: 6,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
   formInput: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    backgroundColor: '#fff',
-    color: '#111827',
+    backgroundColor: "#fff",
+    color: "#111827",
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   mapInput: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   mapInputText: {
     fontSize: 14,
-    color: '#111827',
+    color: "#111827",
   },
   mapInputPlaceholder: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   imagePickerButton: {
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#F9FAFB',
+    overflow: "hidden",
+    backgroundColor: "#F9FAFB",
     minHeight: 150,
   },
   imagePreviewContainer: {
-    width: '100%',
+    width: "100%",
     height: 150,
-    position: 'relative',
+    position: "relative",
   },
   imagePreview: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   changeImageOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 4,
   },
   changeImageText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   imagePickerPlaceholder: {
-    width: '100%',
+    width: "100%",
     height: 150,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
   },
   imagePickerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   formActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 8,
   },
@@ -1029,55 +1690,55 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   cancelButtonText: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   submitButton: {
-    backgroundColor: '#16A34A',
+    backgroundColor: "#16A34A",
   },
   submitButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   mapModalContainer: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   mapModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   mapModalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   searchContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 12,
     gap: 8,
-    backgroundColor: '#1F2937',
+    backgroundColor: "#1F2937",
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: "#374151",
   },
   searchInputWrapper: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#374151',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#374151",
     borderRadius: 8,
     paddingHorizontal: 12,
     gap: 8,
@@ -1087,67 +1748,67 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#F9FAFB',
+    color: "#F9FAFB",
   },
   loadingSpinner: {
     paddingHorizontal: 4,
   },
   loadingText: {
     fontSize: 16,
-    color: '#9CA3AF',
-    fontWeight: '600',
+    color: "#9CA3AF",
+    fontWeight: "600",
   },
   suggestionList: {
-    backgroundColor: '#1F2937',
+    backgroundColor: "#1F2937",
     maxHeight: 300,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: "#374151",
   },
   suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    borderBottomColor: "#374151",
     gap: 12,
-    backgroundColor: '#1F2937',
+    backgroundColor: "#1F2937",
   },
   suggestionIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#374151',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#374151",
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestionTextContainer: {
     flex: 1,
   },
   suggestionText: {
     fontSize: 15,
-    color: '#F9FAFB',
-    fontWeight: '500',
+    color: "#F9FAFB",
+    fontWeight: "500",
     marginBottom: 2,
   },
   suggestionSubtext: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
   mapInstructionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#BFDBFE',
+    borderBottomColor: "#BFDBFE",
   },
   mapInstructionText: {
     flex: 1,
     fontSize: 12,
-    color: '#1E40AF',
+    color: "#1E40AF",
   },
   map: {
     flex: 1,
@@ -1155,35 +1816,70 @@ const styles = StyleSheet.create({
   mapModalFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#fff',
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#fff",
   },
   coordsDisplay: {
     marginBottom: 12,
   },
   coordsLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   coordsValue: {
     fontSize: 14,
-    color: '#111827',
-    fontWeight: '600',
+    color: "#111827",
+    fontWeight: "600",
     marginTop: 4,
   },
   selectLocationButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     paddingVertical: 12,
     borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   selectLocationButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  imagePreviewList: {
+    marginTop: 10,
+    flexDirection: "row",
+  },
+  previewImageWrapper: {
+    marginRight: 10,
+    position: "relative",
+  },
+  previewThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  removeImageIcon: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+  },
+  carouselIndicator: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  carouselIndicatorText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
   },
 });
 

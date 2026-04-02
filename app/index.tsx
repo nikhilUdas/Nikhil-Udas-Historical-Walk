@@ -38,6 +38,7 @@ export default function IndexScreen() {
             style={styles.button}
             onPress={() => router.push("/login")}
             activeOpacity={0.9}
+            testID="getStartedButton"
           >
             <Text style={styles.buttonText}>{t("Get Started")}</Text>
           </TouchableOpacity>

@@ -172,6 +172,7 @@ export default function LoginScreen() {
             }}
             keyboardType="email-address"
             autoCapitalize="none"
+            testID="emailInput"
           />
         </View>
 
@@ -189,6 +190,7 @@ export default function LoginScreen() {
                 setErrorMessage("");
               }}
               secureTextEntry={!showPassword}
+              testID="passwordInput"
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
@@ -224,6 +226,7 @@ export default function LoginScreen() {
           style={[styles.loginButton, loading && styles.loginButtonDisabled]}
           onPress={handleLogin}
           disabled={loading}
+          testID="loginButton"
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

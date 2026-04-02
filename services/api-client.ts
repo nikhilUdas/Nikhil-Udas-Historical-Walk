@@ -4,7 +4,7 @@ import { API_BASE } from "../constants/api";
 // Simple fetch wrapper with token handling and JSON parsing.
 // Use EXPO_PUBLIC_API_BASE_URL to configure the backend URL at runtime.
 
-const TOKEN_KEY = "hw_auth_token";
+const TOKEN_KEY = "jwtToken";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

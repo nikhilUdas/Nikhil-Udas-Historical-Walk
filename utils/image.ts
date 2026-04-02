@@ -7,9 +7,7 @@ import { BASE_URL } from "../constants/api";
  * If the path is empty or null, a placeholder or empty string is returned (optional).
  */
 export const getImageUrl = (path: string | null | undefined): string => {
-    if (!path) return "";
-    // Handle data URIs (base64 images from backend)
-    if (path.startsWith("data:")) return path;
+    if (!path || typeof path !== 'string') return "";
     // Handle full URLs and file paths
     if (path.startsWith("http") || path.startsWith("file://")) return path;
 
