@@ -3,20 +3,21 @@ import "dotenv/config";
 import type { Request, Response } from "express";
 import express from "express";
 import http from "http";
+import path from "path";
 import { initializeSocket } from "./services/socketService.js";
 
 // ❗ FIX 1: Correct route import (your file has 'userRoutes')
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
 import adminStoryRoutes from "./routes/adminStoryRoute.js";
+import favoriteRoutes from "./routes/favoriteRoute.js";
 import heritageSiteRoutes from "./routes/heritageSiteRoute.js";
+import mediaRoutes from "./routes/mediaRoute.js";
 import museumRoutes from "./routes/museumRoute.js";
 import notificationRoutes from "./routes/notificationRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import storyRoutes from "./routes/storyRoute.js";
 import ticketRoutes from "./routes/ticketRoute.js";
 import userRoutes from "./routes/userRoute.js";
-import mediaRoutes from "./routes/mediaRoute.js";
-import favoriteRoutes from "./routes/favoriteRoute.js";
 
 import { registerUser } from "./controllers/userController.js";
 
@@ -27,13 +28,15 @@ const httpServer = http.createServer(app);
 initializeSocket(httpServer);
 
 // CORS configuration - MUST be before other middleware
-app.use(cors({
-  origin: ['http://localhost:8081', 'http://127.0.0.1:8081'], // Your frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:8081", "http://127.0.0.1:8081"], // Your frontend URL
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    optionsSuccessStatus: 200,
+  }),
+);
 
 // Debug middleware to log all requests (must be first - before body parsing)
 app.use((req: Request, res: Response, next) => {
@@ -47,7 +50,7 @@ app.use((req: Request, res: Response, next) => {
   // Write to both stdout and console
   process.stdout.write(logMsg);
   console.log(logMsg);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log("Headers:", JSON.stringify(req.headers, null, 2));
 
   next();
 });
@@ -57,6 +60,7 @@ app.use((req: Request, res: Response, next) => {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Routes
 app.get("/", async (req: Request, res: Response) => {
@@ -65,7 +69,7 @@ app.get("/", async (req: Request, res: Response) => {
 
 // Test route
 app.get("/api/test", (req: Request, res: Response) => {
-  console.log(' TEST ENDPOINT HIT! ');
+  console.log(" TEST ENDPOINT HIT! ");
   res.json({
     message: "API routes are working!",
     timestamp: new Date().toISOString(),
@@ -74,8 +78,8 @@ app.get("/api/test", (req: Request, res: Response) => {
 
 // Simple POST test endpoint
 app.post("/api/test", (req: Request, res: Response) => {
-  console.log(' POST TEST ENDPOINT HIT! ');
-  console.log('Body received:', req.body);
+  console.log(" POST TEST ENDPOINT HIT! ");
+  console.log("Body received:", req.body);
   res.json({
     message: "POST endpoint is working!",
     body: req.body,
@@ -84,7 +88,13 @@ app.post("/api/test", (req: Request, res: Response) => {
 });
 
 // User routes - mounted at /api/users
-app.use("/api/users", (req, res, next) => { next(); }, userRoutes);
+app.use(
+  "/api/users",
+  (req, res, next) => {
+    next();
+  },
+  userRoutes,
+);
 
 // Admin story routes - mounted at /api/admin/stories
 app.use("/api/admin/stories", adminStoryRoutes);
@@ -120,7 +130,6 @@ app.use("/api/media", mediaRoutes);
 // Favorite routes - for user's favorite heritage sites
 app.use("/api/favorites", favoriteRoutes);
 
-
 app.post("/api/users/register", async (req: Request, res: Response) => {
   console.log(" Direct register route hit!");
   console.log("Request body:", req.body);
@@ -149,15 +158,14 @@ app.use((req: Request, res: Response) => {
 
 // Final global error handler to capture 500s
 app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error(' GLOBAL ERROR HANDLER CAUGHT:', err);
+  console.error(" GLOBAL ERROR HANDLER CAUGHT:", err);
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
-    message: err.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err : {},
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: err.message || "Internal Server Error",
+    error: process.env.NODE_ENV === "development" ? err : {},
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
 });
-
 
 const PORT = Number(process.env.PORT) || 8000;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -168,7 +176,6 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED PROMISE REJECTION:", err);
 });
-
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`SERVER STARTED SUCCESSFULLY`);

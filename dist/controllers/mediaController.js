@@ -1,4 +1,5 @@
 import prisma from '../models/index.js';
+import { sendStoredFile } from '../utils/mediaPath.js';
 // Get Story image
 export const getStoryImage = async (req, res) => {
     const { story_id } = req.params;
@@ -10,8 +11,7 @@ export const getStoryImage = async (req, res) => {
         if (!story || !story.media_data) {
             return res.status(404).json({ message: 'Image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(story.media_data));
+        return sendStoredFile(res, story.media_data, 'Image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });
@@ -28,8 +28,7 @@ export const getHeritageSiteAdditionalImage = async (req, res) => {
         if (!image || !image.image_data) {
             return res.status(404).json({ message: 'Image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(image.image_data));
+        return sendStoredFile(res, image.image_data, 'Image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });
@@ -46,8 +45,7 @@ export const getMuseumAdditionalImage = async (req, res) => {
         if (!image || !image.image_data) {
             return res.status(404).json({ message: 'Image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(image.image_data));
+        return sendStoredFile(res, image.image_data, 'Image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });
@@ -65,8 +63,7 @@ export const getUserProfileImage = async (req, res) => {
             console.log(`[Media] Profile image not found for user ${user_id}`);
             return res.status(404).json({ message: 'Profile image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(user.profile_image));
+        return sendStoredFile(res, user.profile_image, 'Profile image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });
@@ -83,8 +80,7 @@ export const getHeritageSiteImage = async (req, res) => {
         if (!site || !site.image_data) {
             return res.status(404).json({ message: 'Image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(site.image_data));
+        return sendStoredFile(res, site.image_data, 'Image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });
@@ -101,8 +97,7 @@ export const getMuseumImage = async (req, res) => {
         if (!museum || !museum.image_data) {
             return res.status(404).json({ message: 'Image not found' });
         }
-        res.setHeader('Content-Type', 'image/jpeg');
-        return res.send(Buffer.from(museum.image_data));
+        return sendStoredFile(res, museum.image_data, 'Image not found');
     }
     catch (error) {
         return res.status(500).json({ message: 'Error retrieving image', error: error.message });

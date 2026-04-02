@@ -1,6 +1,7 @@
 import prisma from '../models/index.js';
 import '../middleware/auth.js';
 import { broadcastNotificationToAll } from '../services/socketService.js';
+import { toStoredPath } from '../utils/fileUpload.js';
 // US-8: Add a new story
 export const addStory = async (req, res) => {
     const { site_id, title, content, god_or_goddess_name } = req.body;
@@ -30,7 +31,7 @@ export const addStory = async (req, res) => {
                 title,
                 content,
                 god_or_goddess_name,
-                media_data: file.buffer,
+                media_data: toStoredPath(file.path),
             },
             include: {
                 site: true,
@@ -48,7 +49,7 @@ export const addStory = async (req, res) => {
             message: 'Story added successfully',
             story: {
                 ...story,
-                media_data: '[Binary Data]',
+                media_url: story.media_data,
             },
         });
     }
@@ -99,7 +100,7 @@ export const updateStory = async (req, res) => {
         if (god_or_goddess_name !== undefined)
             updateData.god_or_goddess_name = god_or_goddess_name;
         if (file)
-            updateData.media_data = file.buffer;
+            updateData.media_data = toStoredPath(file.path);
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ message: 'No fields to update' });
@@ -116,7 +117,7 @@ export const updateStory = async (req, res) => {
             message: 'Story updated successfully',
             story: {
                 ...updatedStory,
-                media_data: updatedStory.media_data ? '[Binary Data]' : null,
+                media_url: updatedStory.media_data || null,
             },
         });
     }
@@ -179,8 +180,7 @@ export const getAllStories = async (req, res) => {
             count: stories.length,
             stories: stories.map(s => ({
                 ...s,
-                media_data: s.media_data ? '[Binary Data]' : null,
-                media_url: `/api/media/stories/${s.story_id}/image`
+                media_url: s.media_data || null,
             })),
         });
     }
@@ -212,8 +212,7 @@ export const getStoryById = async (req, res) => {
             message: 'Story retrieved successfully',
             story: {
                 ...story,
-                media_data: story.media_data ? '[Binary Data]' : null,
-                media_url: `/api/media/stories/${story.story_id}/image`
+                media_url: story.media_data || null,
             },
         });
     }

@@ -1,9 +1,10 @@
-import type { Request, Response } from 'express';
-import '../middleware/auth.js';
-import prisma from '../models/index.js';
-import { broadcastNotificationToAll } from '../services/socketService.js';
-import { isValidImageBuffer } from '../utils/fileUpload.js';
-import { createNotification } from './notificationController.js';
+import type { Request, Response } from "express";
+import "../middleware/auth.js";
+import prisma from "../models/index.js";
+import { broadcastNotificationToAll } from "../services/socketService.js";
+import { toStoredPath } from "../utils/fileUpload.js";
+import { sendStoredFile } from "../utils/mediaPath.js";
+import { createNotification } from "./notificationController.js";
 
 // ==================== ADMIN OPERATIONS ====================
 
@@ -11,17 +12,23 @@ import { createNotification } from './notificationController.js';
 export const addMuseum = async (req: Request, res: Response) => {
   const { name, description, opening_hours, gps_coordinates } = req.body;
   const files = (req as any).files;
-  const file = files && Array.isArray(files) && files.length > 0 ? files[0] : (req as any).file;
+  const file =
+    files && Array.isArray(files) && files.length > 0
+      ? files[0]
+      : (req as any).file;
 
   // Verify user is admin
-  if (req.user?.type !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: Only admins can add museums' });
+  if (req.user?.type !== "admin") {
+    return res
+      .status(403)
+      .json({ message: "Forbidden: Only admins can add museums" });
   }
 
   // Validate required fields
   if (!name || !description || !opening_hours || !gps_coordinates) {
     return res.status(400).json({
-      message: 'Missing required fields: name, description, opening_hours, and gps_coordinates are required',
+      message:
+        "Missing required fields: name, description, opening_hours, and gps_coordinates are required",
     });
   }
 
@@ -32,11 +39,12 @@ export const addMuseum = async (req: Request, res: Response) => {
     });
 
     if (existingMuseum) {
-      return res.status(400).json({ message: 'Museum with this name already exists' });
+      return res
+        .status(400)
+        .json({ message: "Museum with this name already exists" });
     }
 
-    // Image data is handled as buffer
-    const imageData = file ? file.buffer : undefined;
+    const imageData = file?.path ? toStoredPath(file.path) : undefined;
 
     // Create the museum
     const museum = await prisma.museum.create({
@@ -58,11 +66,11 @@ export const addMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: museum.museum_id,
-              image_data: file.buffer as any
-            }
+              image_data: toStoredPath(file.path),
+            },
           });
         } catch (err) {
-          console.error('Error processing additional museum image:', err);
+          console.error("Error processing additional museum image:", err);
         }
       });
       await Promise.all(imagePromises);
@@ -70,24 +78,25 @@ export const addMuseum = async (req: Request, res: Response) => {
 
     // Broadcast notification to all users about new museum
     const notification = {
-      type: 'museum_added',
-      title: 'New Museum Added',
+      type: "museum_added",
+      title: "New Museum Added",
       message: `A new museum "${name}" has been added! Visit it during ${opening_hours}`,
       related_id: museum.museum_id,
     };
     await broadcastNotificationToAll(notification);
 
     return res.status(201).json({
-      message: 'Museum added successfully',
+      message: "Museum added successfully",
       museum: {
         ...museum,
-        image_data: museum.image_data ? '[Binary Data]' : null,
+        image_url: museum.image_data || null,
+        additional_images: [],
       },
     });
   } catch (error: any) {
-    console.error('Error adding museum:', error);
+    console.error("Error adding museum:", error);
     return res.status(500).json({
-      message: 'Error adding museum',
+      message: "Error adding museum",
       error: error.message,
     });
   }
@@ -98,15 +107,18 @@ export const updateMuseum = async (req: Request, res: Response) => {
   const { museum_id } = req.params;
   const { name, description, opening_hours, gps_coordinates } = req.body;
   const files = (req as any).files;
-  const file = files && Array.isArray(files) && files.length > 0 ? files[0] : null;
+  const file =
+    files && Array.isArray(files) && files.length > 0 ? files[0] : null;
 
   // Verify user is admin
-  if (req.user?.type !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: Only admins can edit museums' });
+  if (req.user?.type !== "admin") {
+    return res
+      .status(403)
+      .json({ message: "Forbidden: Only admins can edit museums" });
   }
 
   if (!museum_id) {
-    return res.status(400).json({ message: 'Museum ID is required' });
+    return res.status(400).json({ message: "Museum ID is required" });
   }
 
   try {
@@ -116,7 +128,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
     });
 
     if (!existingMuseum) {
-      return res.status(404).json({ message: 'Museum not found' });
+      return res.status(404).json({ message: "Museum not found" });
     }
 
     // Build update data object with only provided fields
@@ -124,16 +136,17 @@ export const updateMuseum = async (req: Request, res: Response) => {
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (opening_hours !== undefined) updateData.opening_hours = opening_hours;
-    if (gps_coordinates !== undefined) updateData.gps_coordinates = gps_coordinates;
+    if (gps_coordinates !== undefined)
+      updateData.gps_coordinates = gps_coordinates;
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_data = file.buffer as any;
+      updateData.image_data = toStoredPath(file.path);
     }
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ message: 'No fields to update' });
+      return res.status(400).json({ message: "No fields to update" });
     }
 
     // Check if new name already exists (if name is being changed)
@@ -142,7 +155,9 @@ export const updateMuseum = async (req: Request, res: Response) => {
         where: { name: name },
       });
       if (museumWithName) {
-        return res.status(400).json({ message: 'Museum with this name already exists' });
+        return res
+          .status(400)
+          .json({ message: "Museum with this name already exists" });
       }
     }
 
@@ -164,27 +179,30 @@ export const updateMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: updatedMuseum.museum_id,
-              image_data: f.buffer as any
-            }
+              image_data: toStoredPath(f.path),
+            },
           });
         } catch (err) {
-          console.error('Error processing additional museum image during update:', err);
+          console.error(
+            "Error processing additional museum image during update:",
+            err,
+          );
         }
       });
       await Promise.all(imagePromises);
     }
 
     return res.status(200).json({
-      message: 'Museum updated successfully',
+      message: "Museum updated successfully",
       museum: {
         ...updatedMuseum,
-        image_data: updatedMuseum.image_data ? '[Binary Data]' : null,
+        image_url: updatedMuseum.image_data || null,
       },
     });
   } catch (error: any) {
-    console.error('Error updating museum:', error);
+    console.error("Error updating museum:", error);
     return res.status(500).json({
-      message: 'Error updating museum',
+      message: "Error updating museum",
       error: error.message,
     });
   }
@@ -195,12 +213,14 @@ export const deleteMuseum = async (req: Request, res: Response) => {
   const { museum_id } = req.params;
 
   // Verify user is admin
-  if (req.user?.type !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: Only admins can delete museums' });
+  if (req.user?.type !== "admin") {
+    return res
+      .status(403)
+      .json({ message: "Forbidden: Only admins can delete museums" });
   }
 
   if (!museum_id) {
-    return res.status(400).json({ message: 'Museum ID is required' });
+    return res.status(400).json({ message: "Museum ID is required" });
   }
 
   try {
@@ -210,7 +230,7 @@ export const deleteMuseum = async (req: Request, res: Response) => {
     });
 
     if (!existingMuseum) {
-      return res.status(404).json({ message: 'Museum not found' });
+      return res.status(404).json({ message: "Museum not found" });
     }
 
     // Delete the museum (cascades to related tickets)
@@ -219,13 +239,13 @@ export const deleteMuseum = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({
-      message: 'Museum deleted successfully',
+      message: "Museum deleted successfully",
       deletedMuseumId: Number(museum_id),
     });
   } catch (error: any) {
-    console.error('Error deleting museum:', error);
+    console.error("Error deleting museum:", error);
     return res.status(500).json({
-      message: 'Error deleting museum',
+      message: "Error deleting museum",
       error: error.message,
     });
   }
@@ -241,32 +261,31 @@ export const getAllMuseums = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            // Exclude image_data to reduce payload size
-          }
-        }
+            image_data: true,
+          },
+        },
       },
       orderBy: {
-        museum_id: 'desc',
+        museum_id: "desc",
       },
     });
 
     // Transform museums to include image URLs
-    const museumsWithImages = museums.map(museum => ({
+    const museumsWithImages = museums.map((museum) => ({
       ...museum,
-      image_data: museum.image_data ? '[Binary Data]' : null,
-      image_url: museum.image_data ? `/api/media/museums/${museum.museum_id}/image` : null,
-      additional_images: museum.images.map(img => `/api/media/museums/additional/${img.image_id}`)
+      image_url: museum.image_data || null,
+      additional_images: museum.images.map((img) => img.image_data),
     }));
 
     return res.status(200).json({
-      message: 'Museums retrieved successfully',
+      message: "Museums retrieved successfully",
       count: museumsWithImages.length,
       museums: museumsWithImages,
     });
   } catch (error: any) {
-    console.error('Error fetching museums:', error);
+    console.error("Error fetching museums:", error);
     return res.status(500).json({
-      message: 'Error fetching museums',
+      message: "Error fetching museums",
       error: error.message,
     });
   }
@@ -277,7 +296,7 @@ export const getMuseumById = async (req: Request, res: Response) => {
   const { museum_id } = req.params;
 
   if (!museum_id) {
-    return res.status(400).json({ message: 'Museum ID is required' });
+    return res.status(400).json({ message: "Museum ID is required" });
   }
 
   try {
@@ -294,29 +313,28 @@ export const getMuseumById = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            // Exclude image_data to reduce payload size
-          }
-        }
+            image_data: true,
+          },
+        },
       },
     });
 
     if (!museum) {
-      return res.status(404).json({ message: 'Museum not found' });
+      return res.status(404).json({ message: "Museum not found" });
     }
 
     return res.status(200).json({
-      message: 'Museum retrieved successfully',
+      message: "Museum retrieved successfully",
       museum: {
         ...museum,
-        image_data: museum.image_data ? '[Binary Data]' : null,
-        image_url: museum.image_data ? `/api/media/museums/${museum_id}/image` : null,
-        additional_images: museum.images.map(img => `/api/media/museums/additional/${img.image_id}`)
+        image_url: museum.image_data || null,
+        additional_images: museum.images.map((img) => img.image_data),
       },
     });
   } catch (error: any) {
-    console.error('Error fetching museum:', error);
+    console.error("Error fetching museum:", error);
     return res.status(500).json({
-      message: 'Error fetching museum',
+      message: "Error fetching museum",
       error: error.message,
     });
   }
@@ -327,7 +345,7 @@ export const getMuseumImage = async (req: Request, res: Response) => {
   const { museum_id } = req.params;
 
   if (!museum_id) {
-    return res.status(400).json({ message: 'Museum ID is required' });
+    return res.status(400).json({ message: "Museum ID is required" });
   }
 
   try {
@@ -341,21 +359,24 @@ export const getMuseumImage = async (req: Request, res: Response) => {
     });
 
     if (!museum) {
-      return res.status(404).json({ message: 'Museum not found' });
+      return res.status(404).json({ message: "Museum not found" });
     }
 
     if (!museum.image_data) {
-      return res.status(404).json({ message: 'No image available for this museum' });
+      return res
+        .status(404)
+        .json({ message: "No image available for this museum" });
     }
 
-    // Send binary buffer directly
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Content-Disposition', `inline; filename="museum_${museum_id}.jpg"`);
-    return res.send(museum.image_data);
+    return sendStoredFile(
+      res,
+      museum.image_data,
+      "No image available for this museum",
+    );
   } catch (error: any) {
-    console.error('Error fetching museum image:', error);
+    console.error("Error fetching museum image:", error);
     return res.status(500).json({
-      message: 'Error fetching museum image',
+      message: "Error fetching museum image",
       error: error.message,
     });
   }
@@ -369,18 +390,21 @@ export const purchaseTicket = async (req: Request, res: Response) => {
 
   // Verify user is authenticated
   if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized: Please log in' });
+    return res.status(401).json({ message: "Unauthorized: Please log in" });
   }
 
   // Verify user is a regular user (not admin)
-  if (req.user.type === 'admin') {
-    return res.status(403).json({ message: 'Forbidden: Admins cannot purchase tickets' });
+  if (req.user.type === "admin") {
+    return res
+      .status(403)
+      .json({ message: "Forbidden: Admins cannot purchase tickets" });
   }
 
   // Validate required fields
   if (!museum_id || !price || !payment_method) {
     return res.status(400).json({
-      message: 'Missing required fields: museum_id, price, and payment_method are required',
+      message:
+        "Missing required fields: museum_id, price, and payment_method are required",
     });
   }
 
@@ -391,12 +415,12 @@ export const purchaseTicket = async (req: Request, res: Response) => {
     });
 
     if (!museum) {
-      return res.status(404).json({ message: 'Museum not found' });
+      return res.status(404).json({ message: "Museum not found" });
     }
 
     // Validate price
     if (price <= 0) {
-      return res.status(400).json({ message: 'Price must be greater than 0' });
+      return res.status(400).json({ message: "Price must be greater than 0" });
     }
 
     // Create ticket and payment in a transaction
@@ -409,7 +433,7 @@ export const purchaseTicket = async (req: Request, res: Response) => {
           purchase_date: new Date(),
           ticket_pdf: `ticket_${Date.now()}.pdf`, // Placeholder - implement actual PDF generation
           price: Number(price),
-          payment_status: 'completed',
+          payment_status: "completed",
         },
       });
 
@@ -429,21 +453,21 @@ export const purchaseTicket = async (req: Request, res: Response) => {
     // Create and emit notification to user
     await createNotification(
       req.user!.userId,
-      'ticket_purchased',
-      'Ticket Purchased Successfully',
+      "ticket_purchased",
+      "Ticket Purchased Successfully",
       `Your ticket for ${museum.name} has been purchased successfully. Amount: Rs. ${price}`,
-      museum.museum_id
+      museum.museum_id,
     );
 
     return res.status(201).json({
-      message: 'Ticket purchased successfully',
+      message: "Ticket purchased successfully",
       ticket: result.ticket,
       payment: result.payment,
     });
   } catch (error: any) {
-    console.error('Error purchasing ticket:', error);
+    console.error("Error purchasing ticket:", error);
     return res.status(500).json({
-      message: 'Error purchasing ticket',
+      message: "Error purchasing ticket",
       error: error.message,
     });
   }
@@ -453,7 +477,7 @@ export const purchaseTicket = async (req: Request, res: Response) => {
 export const getUserTickets = async (req: Request, res: Response) => {
   // Verify user is authenticated
   if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized: Please log in' });
+    return res.status(401).json({ message: "Unauthorized: Please log in" });
   }
 
   try {
@@ -464,19 +488,19 @@ export const getUserTickets = async (req: Request, res: Response) => {
         payments: true,
       },
       orderBy: {
-        purchase_date: 'desc',
+        purchase_date: "desc",
       },
     });
 
     return res.status(200).json({
-      message: 'Tickets retrieved successfully',
+      message: "Tickets retrieved successfully",
       count: tickets.length,
       tickets,
     });
   } catch (error: any) {
-    console.error('Error fetching user tickets:', error);
+    console.error("Error fetching user tickets:", error);
     return res.status(500).json({
-      message: 'Error fetching tickets',
+      message: "Error fetching tickets",
       error: error.message,
     });
   }
@@ -488,11 +512,11 @@ export const getTicketById = async (req: Request, res: Response) => {
 
   // Verify user is authenticated
   if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized: Please log in' });
+    return res.status(401).json({ message: "Unauthorized: Please log in" });
   }
 
   if (!ticket_id) {
-    return res.status(400).json({ message: 'Ticket ID is required' });
+    return res.status(400).json({ message: "Ticket ID is required" });
   }
 
   try {
@@ -505,22 +529,24 @@ export const getTicketById = async (req: Request, res: Response) => {
     });
 
     if (!ticket) {
-      return res.status(404).json({ message: 'Ticket not found' });
+      return res.status(404).json({ message: "Ticket not found" });
     }
 
     // Check if user owns this ticket or is an admin
-    if (ticket.user_id !== req.user.userId && req.user.type !== 'admin') {
-      return res.status(403).json({ message: 'Forbidden: You do not own this ticket' });
+    if (ticket.user_id !== req.user.userId && req.user.type !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: You do not own this ticket" });
     }
 
     return res.status(200).json({
-      message: 'Ticket retrieved successfully',
+      message: "Ticket retrieved successfully",
       ticket,
     });
   } catch (error: any) {
-    console.error('Error fetching ticket:', error);
+    console.error("Error fetching ticket:", error);
     return res.status(500).json({
-      message: 'Error fetching ticket',
+      message: "Error fetching ticket",
       error: error.message,
     });
   }

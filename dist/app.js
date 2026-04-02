@@ -2,6 +2,7 @@ import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import http from "http";
+import path from "path";
 import { initializeSocket } from "./services/socketService.js";
 // ❗ FIX 1: Correct route import (your file has 'userRoutes')
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
@@ -14,6 +15,7 @@ import storyRoutes from "./routes/storyRoute.js";
 import ticketRoutes from "./routes/ticketRoute.js";
 import userRoutes from "./routes/userRoute.js";
 import mediaRoutes from "./routes/mediaRoute.js";
+import favoriteRoutes from "./routes/favoriteRoute.js";
 import { registerUser } from "./controllers/userController.js";
 const app = express();
 const httpServer = http.createServer(app);
@@ -44,6 +46,7 @@ app.use((req, res, next) => {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Routes
 app.get("/", async (req, res) => {
     res.send("This is the backend server of Historical Walk!");
@@ -89,6 +92,8 @@ import adminStatsRoutes from "./routes/adminStatsRoute.js";
 app.use("/api/admin/stats", adminStatsRoutes);
 // Media routes - for serving images
 app.use("/api/media", mediaRoutes);
+// Favorite routes - for user's favorite heritage sites
+app.use("/api/favorites", favoriteRoutes);
 app.post("/api/users/register", async (req, res) => {
     console.log(" Direct register route hit!");
     console.log("Request body:", req.body);

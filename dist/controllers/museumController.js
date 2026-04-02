@@ -1,6 +1,8 @@
 import '../middleware/auth.js';
 import prisma from '../models/index.js';
 import { broadcastNotificationToAll } from '../services/socketService.js';
+import { toStoredPath } from '../utils/fileUpload.js';
+import { sendStoredFile } from '../utils/mediaPath.js';
 import { createNotification } from './notificationController.js';
 // ==================== ADMIN OPERATIONS ====================
 // Add a new museum (Admin only)
@@ -26,8 +28,7 @@ export const addMuseum = async (req, res) => {
         if (existingMuseum) {
             return res.status(400).json({ message: 'Museum with this name already exists' });
         }
-        // Image data is handled as buffer
-        const imageData = file ? file.buffer : undefined;
+        const imageData = file?.path ? toStoredPath(file.path) : undefined;
         // Create the museum
         const museum = await prisma.museum.create({
             data: {
@@ -46,7 +47,7 @@ export const addMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: museum.museum_id,
-                            image_data: file.buffer
+                            image_data: toStoredPath(file.path)
                         }
                     });
                 }
@@ -68,7 +69,8 @@ export const addMuseum = async (req, res) => {
             message: 'Museum added successfully',
             museum: {
                 ...museum,
-                image_data: museum.image_data ? '[Binary Data]' : null,
+                image_url: museum.image_data || null,
+                additional_images: [],
             },
         });
     }
@@ -113,7 +115,7 @@ export const updateMuseum = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            updateData.image_data = file.buffer;
+            updateData.image_data = toStoredPath(file.path);
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
@@ -144,7 +146,7 @@ export const updateMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: updatedMuseum.museum_id,
-                            image_data: f.buffer
+                            image_data: toStoredPath(f.path)
                         }
                     });
                 }
@@ -158,7 +160,7 @@ export const updateMuseum = async (req, res) => {
             message: 'Museum updated successfully',
             museum: {
                 ...updatedMuseum,
-                image_data: updatedMuseum.image_data ? '[Binary Data]' : null,
+                image_url: updatedMuseum.image_data || null,
             },
         });
     }
@@ -214,7 +216,7 @@ export const getAllMuseums = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        // Exclude image_data to reduce payload size
+                        image_data: true,
                     }
                 }
             },
@@ -225,9 +227,8 @@ export const getAllMuseums = async (req, res) => {
         // Transform museums to include image URLs
         const museumsWithImages = museums.map(museum => ({
             ...museum,
-            image_data: museum.image_data ? '[Binary Data]' : null,
-            image_url: museum.image_data ? `/api/media/museums/${museum.museum_id}/image` : null,
-            additional_images: museum.images.map(img => `/api/media/museums/additional/${img.image_id}`)
+            image_url: museum.image_data || null,
+            additional_images: museum.images.map(img => img.image_data)
         }));
         return res.status(200).json({
             message: 'Museums retrieved successfully',
@@ -263,7 +264,7 @@ export const getMuseumById = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        // Exclude image_data to reduce payload size
+                        image_data: true,
                     }
                 }
             },
@@ -275,9 +276,8 @@ export const getMuseumById = async (req, res) => {
             message: 'Museum retrieved successfully',
             museum: {
                 ...museum,
-                image_data: museum.image_data ? '[Binary Data]' : null,
-                image_url: museum.image_data ? `/api/media/museums/${museum_id}/image` : null,
-                additional_images: museum.images.map(img => `/api/media/museums/additional/${img.image_id}`)
+                image_url: museum.image_data || null,
+                additional_images: museum.images.map(img => img.image_data)
             },
         });
     }
@@ -310,10 +310,7 @@ export const getMuseumImage = async (req, res) => {
         if (!museum.image_data) {
             return res.status(404).json({ message: 'No image available for this museum' });
         }
-        // Send binary buffer directly
-        res.setHeader('Content-Type', 'image/jpeg');
-        res.setHeader('Content-Disposition', `inline; filename="museum_${museum_id}.jpg"`);
-        return res.send(museum.image_data);
+        return sendStoredFile(res, museum.image_data, 'No image available for this museum');
     }
     catch (error) {
         console.error('Error fetching museum image:', error);

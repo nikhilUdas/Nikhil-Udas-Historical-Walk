@@ -27,7 +27,7 @@ model User {
   password       String
   role           String
   email_verified Boolean   @default(false)
-  profile_image  Bytes?
+  profile_image  String?
   location       String?
   created_at     DateTime  @default(now())
 
@@ -57,7 +57,7 @@ model HeritageSite {
   description     String
   photo_url       String
   gps_coordinates String
-  image_data      Bytes?
+  image_data      String?
 
   stories    Story[]
   routes     MapRoute[]
@@ -69,7 +69,7 @@ model HeritageSite {
 model HeritageSiteImage {
   image_id   Int          @id @default(autoincrement())
   site_id    Int
-  image_data Bytes
+  image_data String
   site       HeritageSite @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
 }
 
@@ -79,7 +79,7 @@ model Museum {
   description     String
   opening_hours   String
   gps_coordinates String
-  image_data      Bytes?
+  image_data      String?
 
   tickets Ticket[]
   reviews Review[]
@@ -89,7 +89,7 @@ model Museum {
 model MuseumImage {
   image_id   Int    @id @default(autoincrement())
   museum_id  Int
-  image_data Bytes
+  image_data String
   museum     Museum @relation(fields: [museum_id], references: [museum_id], onDelete: Cascade)
 }
 
@@ -99,7 +99,7 @@ model Story {
   title               String
   content             String
   god_or_goddess_name  String
-  media_data            Bytes?
+  media_data            String?
 
   site HeritageSite @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
   payments StoryPayment[]

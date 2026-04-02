@@ -1,6 +1,8 @@
 import '../middleware/auth.js';
 import prisma from '../models/index.js';
 import { broadcastNotificationToAll } from '../services/socketService.js';
+import { toStoredPath } from '../utils/fileUpload.js';
+import { sendStoredFile } from '../utils/mediaPath.js';
 // Add a new heritage site
 export const addHeritageSite = async (req, res) => {
     const { name, description, photo_url, gps_coordinates } = req.body;
@@ -24,16 +26,15 @@ export const addHeritageSite = async (req, res) => {
         if (existingSite) {
             return res.status(400).json({ message: 'Heritage site with this name already exists' });
         }
-        // Image data is handled as buffer
-        const imageData = file ? file.buffer : undefined;
+        const mainImagePath = file?.path ? toStoredPath(file.path) : null;
         // Create the heritage site
         const site = await prisma.heritageSite.create({
             data: {
                 name,
                 description,
-                photo_url: photo_url || 'provided_via_upload',
+                photo_url: mainImagePath || photo_url,
                 gps_coordinates,
-                image_data: imageData,
+                image_data: mainImagePath || null,
             },
         });
         // Handle multiple images if provided
@@ -47,7 +48,7 @@ export const addHeritageSite = async (req, res) => {
                     return prisma.heritageSiteImage.create({
                         data: {
                             site_id: site.site_id,
-                            image_data: file.buffer
+                            image_data: toStoredPath(file.path)
                         }
                     });
                 }
@@ -69,7 +70,8 @@ export const addHeritageSite = async (req, res) => {
             message: 'Heritage site added successfully',
             site: {
                 ...site,
-                image_data: site.image_data ? '[Binary Data]' : null,
+                image_url: site.photo_url || site.image_data || null,
+                additional_images: [],
             },
         });
     }
@@ -114,7 +116,9 @@ export const updateHeritageSite = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            updateData.image_data = file.buffer;
+            const storedPath = toStoredPath(file.path);
+            updateData.photo_url = storedPath;
+            updateData.image_data = storedPath;
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
@@ -143,7 +147,7 @@ export const updateHeritageSite = async (req, res) => {
                     return prisma.heritageSiteImage.create({
                         data: {
                             site_id: updatedSite.site_id,
-                            image_data: f.buffer
+                            image_data: toStoredPath(f.path)
                         }
                     });
                 }
@@ -157,7 +161,7 @@ export const updateHeritageSite = async (req, res) => {
             message: 'Heritage site updated successfully',
             site: {
                 ...updatedSite,
-                image_data: updatedSite.image_data ? '[Binary Data]' : null,
+                image_url: updatedSite.photo_url || updatedSite.image_data || null,
             },
         });
     }
@@ -213,7 +217,7 @@ export const getAllHeritageSites = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        // Exclude image_data from list view
+                        image_data: true,
                     }
                 }
             },
@@ -244,13 +248,12 @@ export const getAllHeritageSites = async (req, res) => {
             console.log("SITES", sites);
             return {
                 ...site,
-                image_data: site.image_data ? '[Binary Data]' : null,
                 description: displayDescription,
                 full_description: isUnlocked ? site.description : null,
                 is_unlocked: isUnlocked,
                 has_full_content: hasFullContent,
-                image_url: site.image_data ? `/api/media/sites/${site.site_id}/image` : null,
-                additional_images: site.images.map(img => `/api/media/sites/additional/${img.image_id}`)
+                image_url: site.photo_url || site.image_data || null,
+                additional_images: site.images.map(img => img.image_data)
             };
         });
         return res.status(200).json({
@@ -282,7 +285,7 @@ export const getHeritageSiteById = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        // Exclude image_data to reduce payload size
+                        image_data: true,
                     }
                 }
             },
@@ -325,13 +328,12 @@ export const getHeritageSiteById = async (req, res) => {
             message: 'Heritage site retrieved successfully',
             site: {
                 ...site,
-                image_data: site.image_data ? '[Binary Data]' : null,
                 description: displayDescription,
                 full_description: isUnlocked ? site.description : null,
                 is_unlocked: isUnlocked,
                 has_full_content: hasFullContent,
-                image_url: site.image_data ? `/api/media/sites/${site.site_id}/image` : null,
-                additional_images: site.images.map(img => `/api/media/sites/additional/${img.image_id}`)
+                image_url: site.photo_url || site.image_data || null,
+                additional_images: site.images.map(img => img.image_data)
             },
         });
     }
@@ -355,19 +357,18 @@ export const getHeritageSiteImage = async (req, res) => {
             select: {
                 site_id: true,
                 name: true,
+                photo_url: true,
                 image_data: true,
             },
         });
         if (!site) {
             return res.status(404).json({ message: 'Heritage site not found' });
         }
-        if (!site.image_data) {
+        const storedPath = site.photo_url || site.image_data;
+        if (!storedPath) {
             return res.status(404).json({ message: 'No image available for this heritage site' });
         }
-        // Send binary buffer directly
-        res.setHeader('Content-Type', 'image/jpeg');
-        res.setHeader('Content-Disposition', `inline; filename="site_${site_id}.jpg"`);
-        return res.send(site.image_data);
+        return sendStoredFile(res, storedPath, 'No image available for this heritage site');
     }
     catch (error) {
         console.error('Error fetching heritage site image:', error);

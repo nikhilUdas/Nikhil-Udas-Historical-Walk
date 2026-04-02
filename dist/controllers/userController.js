@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import prisma from '../models/index.js';
 import '../middleware/auth.js';
 import { sendOTPEmail } from '../utils/emailService.js';
+import { toStoredPath } from '../utils/fileUpload.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'historicalwalksecret';
 const OTP_EXPIRY_MINUTES = 10;
 // Helper function to generate OTP
@@ -308,7 +309,7 @@ export const getUserProfile = async (req, res) => {
                 name: user.name,
                 role: user.role,
                 isVerified: user.email_verified,
-                profileImage: user.profile_image ? `/api/media/users/${user.user_id}/image` : null,
+                profileImage: user.profile_image || null,
                 tickets: user.tickets,
                 favorites: user.favorites,
                 reviews: user.reviews,
@@ -343,7 +344,7 @@ export const updateUserProfile = async (req, res) => {
             updateData.email = email;
         // Handle profile image upload
         if (file) {
-            updateData.profile_image = file.buffer;
+            updateData.profile_image = toStoredPath(file.path);
         }
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ message: 'No fields to update' });
@@ -371,7 +372,7 @@ export const updateUserProfile = async (req, res) => {
                 name: updatedUser.name,
                 role: updatedUser.role,
                 isVerified: updatedUser.email_verified,
-                profileImage: updatedUser.profile_image ? `/api/media/users/${updatedUser.user_id}/image` : null,
+                profileImage: updatedUser.profile_image || null,
             },
         });
     }
