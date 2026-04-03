@@ -50,7 +50,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
         description,
         photo_url: mainImagePath || photo_url,
         gps_coordinates,
-        image_data: mainImagePath || null,
+        image_path: mainImagePath || null,
       },
     });
 
@@ -65,7 +65,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: site.site_id,
-              image_data: toStoredPath(file.path),
+              image_path: toStoredPath(file.path),
             },
           });
         } catch (err) {
@@ -88,7 +88,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
       message: "Heritage site added successfully",
       site: {
         ...site,
-        image_url: site.photo_url || site.image_data || null,
+        image_url: site.photo_url || site.image_path || null,
         additional_images: [],
       },
     });
@@ -142,7 +142,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
     if (file) {
       const storedPath = toStoredPath(file.path);
       updateData.photo_url = storedPath;
-      updateData.image_data = storedPath;
+      updateData.image_path = storedPath;
     }
 
     // Check if there's anything to update
@@ -177,7 +177,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: updatedSite.site_id,
-              image_data: toStoredPath(f.path),
+              image_path: toStoredPath(f.path),
             },
           });
         } catch (err) {
@@ -194,7 +194,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
       message: "Heritage site updated successfully",
       site: {
         ...updatedSite,
-        image_url: updatedSite.photo_url || updatedSite.image_data || null,
+        image_url: updatedSite.photo_url || updatedSite.image_path || null,
       },
     });
   } catch (error: any) {
@@ -258,7 +258,7 @@ export const getAllHeritageSites = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            image_data: true,
+            image_path: true,
           },
         },
       },
@@ -303,8 +303,8 @@ export const getAllHeritageSites = async (req: Request, res: Response) => {
         full_description: isUnlocked ? site.description : null,
         is_unlocked: isUnlocked,
         has_full_content: hasFullContent,
-        image_url: site.photo_url || site.image_data || null,
-        additional_images: site.images.map((img) => img.image_data),
+        image_url: site.photo_url || site.image_path || null,
+        additional_images: site.images.map((img) => img.image_path),
       };
     });
 
@@ -339,7 +339,7 @@ export const getHeritageSiteById = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            image_data: true,
+            image_path: true,
           },
         },
       },
@@ -399,8 +399,8 @@ export const getHeritageSiteById = async (req: Request, res: Response) => {
         full_description: isUnlocked ? site.description : null,
         is_unlocked: isUnlocked,
         has_full_content: hasFullContent,
-        image_url: site.photo_url || site.image_data || null,
-        additional_images: site.images.map((img) => img.image_data),
+        image_url: site.photo_url || site.image_path || null,
+        additional_images: site.images.map((img) => img.image_path),
       },
     });
   } catch (error: any) {
@@ -427,7 +427,7 @@ export const getHeritageSiteImage = async (req: Request, res: Response) => {
         site_id: true,
         name: true,
         photo_url: true,
-        image_data: true,
+        image_path: true,
       },
     });
 
@@ -435,7 +435,7 @@ export const getHeritageSiteImage = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Heritage site not found" });
     }
 
-    const storedPath = site.photo_url || site.image_data;
+    const storedPath = site.photo_url || site.image_path;
     if (!storedPath) {
       return res
         .status(404)

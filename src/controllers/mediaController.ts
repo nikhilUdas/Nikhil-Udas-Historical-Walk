@@ -8,14 +8,14 @@ export const getStoryImage = async (req: Request, res: Response) => {
   try {
     const story = await prisma.story.findUnique({
       where: { story_id: Number(story_id) },
-      select: { media_data: true },
+      select: { media_path: true },
     });
 
-    if (!story || !story.media_data) {
+    if (!story || !story.media_path) {
       return res.status(404).json({ message: "Image not found" });
     }
 
-    return sendStoredFile(res, story.media_data, "Image not found");
+    return sendStoredFile(res, story.media_path, "Image not found");
   } catch (error: any) {
     return res
       .status(500)
@@ -32,14 +32,14 @@ export const getHeritageSiteAdditionalImage = async (
   try {
     const image = await prisma.heritageSiteImage.findUnique({
       where: { image_id: Number(image_id) },
-      select: { image_data: true },
+      select: { image_path: true },
     });
 
-    if (!image || !image.image_data) {
+    if (!image || !image.image_path) {
       return res.status(404).json({ message: "Image not found" });
     }
 
-    return sendStoredFile(res, image.image_data, "Image not found");
+    return sendStoredFile(res, image.image_path, "Image not found");
   } catch (error: any) {
     return res
       .status(500)
@@ -53,14 +53,14 @@ export const getMuseumAdditionalImage = async (req: Request, res: Response) => {
   try {
     const image = await prisma.museumImage.findUnique({
       where: { image_id: Number(image_id) },
-      select: { image_data: true },
+      select: { image_path: true },
     });
 
-    if (!image || !image.image_data) {
+    if (!image || !image.image_path) {
       return res.status(404).json({ message: "Image not found" });
     }
 
-    return sendStoredFile(res, image.image_data, "Image not found");
+    return sendStoredFile(res, image.image_path, "Image not found");
   } catch (error: any) {
     return res
       .status(500)
@@ -96,14 +96,14 @@ export const getHeritageSiteImage = async (req: Request, res: Response) => {
   try {
     const site = await prisma.heritageSite.findUnique({
       where: { site_id: Number(site_id) },
-      select: { image_data: true },
+      select: { image_path: true },
     });
 
-    if (!site || !site.image_data) {
+    if (!site || !site.image_path) {
       return res.status(404).json({ message: "Image not found" });
     }
 
-    return sendStoredFile(res, site.image_data, "Image not found");
+    return sendStoredFile(res, site.image_path, "Image not found");
   } catch (error: any) {
     return res
       .status(500)
@@ -117,14 +117,14 @@ export const getMuseumImage = async (req: Request, res: Response) => {
   try {
     const museum = await prisma.museum.findUnique({
       where: { museum_id: Number(museum_id) },
-      select: { image_data: true },
+      select: { image_path: true },
     });
 
-    if (!museum || !museum.image_data) {
+    if (!museum || !museum.image_path) {
       return res.status(404).json({ message: "Image not found" });
     }
 
-    return sendStoredFile(res, museum.image_data, "Image not found");
+    return sendStoredFile(res, museum.image_path, "Image not found");
   } catch (error: any) {
     return res
       .status(500)

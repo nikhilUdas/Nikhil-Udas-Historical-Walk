@@ -57,7 +57,7 @@ model HeritageSite {
   description     String
   photo_url       String
   gps_coordinates String
-  image_data      String?
+  image_path      String?
 
   stories    Story[]
   routes     MapRoute[]
@@ -69,7 +69,7 @@ model HeritageSite {
 model HeritageSiteImage {
   image_id   Int          @id @default(autoincrement())
   site_id    Int
-  image_data String
+  image_path String
   site       HeritageSite @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
 }
 
@@ -79,7 +79,7 @@ model Museum {
   description     String
   opening_hours   String
   gps_coordinates String
-  image_data      String?
+  image_path      String?
 
   tickets Ticket[]
   reviews Review[]
@@ -89,7 +89,7 @@ model Museum {
 model MuseumImage {
   image_id   Int    @id @default(autoincrement())
   museum_id  Int
-  image_data String
+  image_path String
   museum     Museum @relation(fields: [museum_id], references: [museum_id], onDelete: Cascade)
 }
 
@@ -99,7 +99,7 @@ model Story {
   title               String
   content             String
   god_or_goddess_name  String
-  media_data            String?
+  media_path            String
 
   site HeritageSite @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
   payments StoryPayment[]

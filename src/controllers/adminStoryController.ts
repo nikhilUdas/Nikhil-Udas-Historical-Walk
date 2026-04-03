@@ -41,7 +41,7 @@ export const addStory = async (req: Request, res: Response) => {
         title,
         content,
         god_or_goddess_name,
-        media_data: toStoredPath(file.path),
+        media_path: toStoredPath(file.path),
       },
       include: {
         site: true,
@@ -61,7 +61,7 @@ export const addStory = async (req: Request, res: Response) => {
       message: "Story added successfully",
       story: {
         ...story,
-        media_url: story.media_data,
+        media_url: story.media_path,
       },
     });
   } catch (error: any) {
@@ -117,7 +117,7 @@ export const updateStory = async (req: Request, res: Response) => {
     if (content !== undefined) updateData.content = content;
     if (god_or_goddess_name !== undefined)
       updateData.god_or_goddess_name = god_or_goddess_name;
-    if (file) updateData.media_data = toStoredPath(file.path);
+    if (file) updateData.media_path = toStoredPath(file.path);
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
@@ -137,7 +137,7 @@ export const updateStory = async (req: Request, res: Response) => {
       message: "Story updated successfully",
       story: {
         ...updatedStory,
-        media_url: updatedStory.media_data || null,
+        media_url: updatedStory.media_path || null,
       },
     });
   } catch (error: any) {
@@ -209,7 +209,7 @@ export const getAllStories = async (req: Request, res: Response) => {
       count: stories.length,
       stories: stories.map((s) => ({
         ...s,
-        media_url: s.media_data || null,
+        media_url: s.media_path || null,
       })),
     });
   } catch (error: any) {
@@ -245,7 +245,7 @@ export const getStoryById = async (req: Request, res: Response) => {
       message: "Story retrieved successfully",
       story: {
         ...story,
-        media_url: story.media_data || null,
+        media_url: story.media_path || null,
       },
     });
   } catch (error: any) {

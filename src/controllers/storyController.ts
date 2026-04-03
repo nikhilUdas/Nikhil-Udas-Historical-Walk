@@ -50,7 +50,7 @@ export const getStoriesPreview = async (req: Request, res: Response) => {
             ? story.content.substring(0, previewLen) + "..."
             : story.content,
         god_or_goddess_name: story.god_or_goddess_name,
-        media_url: story.media_data || null,
+        media_url: story.media_path || null,
         has_full_content: story.content.length > previewLen,
         is_unlocked: purchasedStoryIds.includes(story.story_id),
         site: story.site,
@@ -110,7 +110,7 @@ export const getStoryPreviewById = async (req: Request, res: Response) => {
           ? story.content.substring(0, previewLen) + "..."
           : story.content,
       god_or_goddess_name: story.god_or_goddess_name,
-      media_url: story.media_data || null,
+      media_url: story.media_path || null,
       has_full_content: story.content.length > previewLen,
       site: story.site,
     };
@@ -175,7 +175,7 @@ export const getStoriesPreviewBySite = async (req: Request, res: Response) => {
             ? story.content.substring(0, previewLen) + "..."
             : story.content,
         god_or_goddess_name: story.god_or_goddess_name,
-        media_url: story.media_data || null,
+        media_url: story.media_path || null,
         has_full_content: story.content.length > previewLen,
         site: story.site,
       };
@@ -250,7 +250,7 @@ export const getFullStory = async (req: Request, res: Response) => {
         title: story.title,
         content: story.content, // Full content
         god_or_goddess_name: story.god_or_goddess_name,
-        media_url: story.media_data || null,
+        media_url: story.media_path || null,
         site: story.site,
       },
     });

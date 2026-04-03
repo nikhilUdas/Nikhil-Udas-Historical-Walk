@@ -56,8 +56,8 @@ async function main() {
       gps_coordinates: "27.6744° N, 85.3245° E",
       images: {
         create: [
-          { image_data: "uploads/sites/dummy_image_data_1.jpg" },
-          { image_data: "uploads/sites/dummy_image_data_2.jpg" },
+          { image_path: "uploads/sites/dummy_image_data_1.jpg" },
+          { image_path: "uploads/sites/dummy_image_data_2.jpg" },
         ],
       },
       stories: {
@@ -101,7 +101,7 @@ async function main() {
       opening_hours: "10:00 AM - 5:00 PM",
       gps_coordinates: "27.6744° N, 85.3245° E",
       images: {
-        create: [{ image_data: "uploads/museums/museum_image_1.jpg" }],
+        create: [{ image_path: "uploads/museums/museum_image_1.jpg" }],
       },
     },
   });

@@ -44,7 +44,7 @@ export const addMuseum = async (req: Request, res: Response) => {
         .json({ message: "Museum with this name already exists" });
     }
 
-    const imageData = file?.path ? toStoredPath(file.path) : undefined;
+    const imagePath = file?.path ? toStoredPath(file.path) : undefined;
 
     // Create the museum
     const museum = await prisma.museum.create({
@@ -53,7 +53,7 @@ export const addMuseum = async (req: Request, res: Response) => {
         description,
         opening_hours,
         gps_coordinates,
-        image_data: imageData as any,
+        image_path: imagePath as any,
       },
     });
 
@@ -66,7 +66,7 @@ export const addMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: museum.museum_id,
-              image_data: toStoredPath(file.path),
+              image_path: toStoredPath(file.path),
             },
           });
         } catch (err) {
@@ -89,7 +89,7 @@ export const addMuseum = async (req: Request, res: Response) => {
       message: "Museum added successfully",
       museum: {
         ...museum,
-        image_url: museum.image_data || null,
+        image_url: museum.image_path || null,
         additional_images: [],
       },
     });
@@ -141,7 +141,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_data = toStoredPath(file.path);
+      updateData.image_path = toStoredPath(file.path);
     }
 
     // Check if there's anything to update
@@ -179,7 +179,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: updatedMuseum.museum_id,
-              image_data: toStoredPath(f.path),
+              image_path: toStoredPath(f.path),
             },
           });
         } catch (err) {
@@ -196,7 +196,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
       message: "Museum updated successfully",
       museum: {
         ...updatedMuseum,
-        image_url: updatedMuseum.image_data || null,
+        image_url: updatedMuseum.image_path || null,
       },
     });
   } catch (error: any) {
@@ -261,7 +261,7 @@ export const getAllMuseums = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            image_data: true,
+            image_path: true,
           },
         },
       },
@@ -273,8 +273,8 @@ export const getAllMuseums = async (req: Request, res: Response) => {
     // Transform museums to include image URLs
     const museumsWithImages = museums.map((museum) => ({
       ...museum,
-      image_url: museum.image_data || null,
-      additional_images: museum.images.map((img) => img.image_data),
+      image_url: museum.image_path || null,
+      additional_images: museum.images.map((img) => img.image_path),
     }));
 
     return res.status(200).json({
@@ -313,7 +313,7 @@ export const getMuseumById = async (req: Request, res: Response) => {
         images: {
           select: {
             image_id: true,
-            image_data: true,
+            image_path: true,
           },
         },
       },
@@ -327,8 +327,8 @@ export const getMuseumById = async (req: Request, res: Response) => {
       message: "Museum retrieved successfully",
       museum: {
         ...museum,
-        image_url: museum.image_data || null,
-        additional_images: museum.images.map((img) => img.image_data),
+        image_url: museum.image_path || null,
+        additional_images: museum.images.map((img) => img.image_path),
       },
     });
   } catch (error: any) {
@@ -354,7 +354,7 @@ export const getMuseumImage = async (req: Request, res: Response) => {
       select: {
         museum_id: true,
         name: true,
-        image_data: true,
+        image_path: true,
       },
     });
 
@@ -362,7 +362,7 @@ export const getMuseumImage = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Museum not found" });
     }
 
-    if (!museum.image_data) {
+    if (!museum.image_path) {
       return res
         .status(404)
         .json({ message: "No image available for this museum" });
@@ -370,7 +370,7 @@ export const getMuseumImage = async (req: Request, res: Response) => {
 
     return sendStoredFile(
       res,
-      museum.image_data,
+      museum.image_path,
       "No image available for this museum",
     );
   } catch (error: any) {
