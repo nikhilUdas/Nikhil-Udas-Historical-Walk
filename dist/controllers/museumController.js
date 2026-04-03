@@ -1,23 +1,27 @@
-import '../middleware/auth.js';
-import prisma from '../models/index.js';
-import { broadcastNotificationToAll } from '../services/socketService.js';
-import { toStoredPath } from '../utils/fileUpload.js';
-import { sendStoredFile } from '../utils/mediaPath.js';
-import { createNotification } from './notificationController.js';
+import "../middleware/auth.js";
+import prisma from "../models/index.js";
+import { broadcastNotificationToAll } from "../services/socketService.js";
+import { toStoredPath } from "../utils/fileUpload.js";
+import { sendStoredFile } from "../utils/mediaPath.js";
+import { createNotification } from "./notificationController.js";
 // ==================== ADMIN OPERATIONS ====================
 // Add a new museum (Admin only)
 export const addMuseum = async (req, res) => {
     const { name, description, opening_hours, gps_coordinates } = req.body;
     const files = req.files;
-    const file = files && Array.isArray(files) && files.length > 0 ? files[0] : req.file;
+    const file = files && Array.isArray(files) && files.length > 0
+        ? files[0]
+        : req.file;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can add museums' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can add museums" });
     }
     // Validate required fields
     if (!name || !description || !opening_hours || !gps_coordinates) {
         return res.status(400).json({
-            message: 'Missing required fields: name, description, opening_hours, and gps_coordinates are required',
+            message: "Missing required fields: name, description, opening_hours, and gps_coordinates are required",
         });
     }
     try {
@@ -26,9 +30,11 @@ export const addMuseum = async (req, res) => {
             where: { name: name },
         });
         if (existingMuseum) {
-            return res.status(400).json({ message: 'Museum with this name already exists' });
+            return res
+                .status(400)
+                .json({ message: "Museum with this name already exists" });
         }
-        const imageData = file?.path ? toStoredPath(file.path) : undefined;
+        const imagePath = file?.path ? toStoredPath(file.path) : undefined;
         // Create the museum
         const museum = await prisma.museum.create({
             data: {
@@ -36,7 +42,7 @@ export const addMuseum = async (req, res) => {
                 description,
                 opening_hours,
                 gps_coordinates,
-                image_data: imageData,
+                image_path: imagePath,
             },
         });
         // Handle multiple images if provided
@@ -47,37 +53,37 @@ export const addMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: museum.museum_id,
-                            image_data: toStoredPath(file.path)
-                        }
+                            image_path: toStoredPath(file.path),
+                        },
                     });
                 }
                 catch (err) {
-                    console.error('Error processing additional museum image:', err);
+                    console.error("Error processing additional museum image:", err);
                 }
             });
             await Promise.all(imagePromises);
         }
         // Broadcast notification to all users about new museum
         const notification = {
-            type: 'museum_added',
-            title: 'New Museum Added',
+            type: "museum_added",
+            title: "New Museum Added",
             message: `A new museum "${name}" has been added! Visit it during ${opening_hours}`,
             related_id: museum.museum_id,
         };
         await broadcastNotificationToAll(notification);
         return res.status(201).json({
-            message: 'Museum added successfully',
+            message: "Museum added successfully",
             museum: {
                 ...museum,
-                image_url: museum.image_data || null,
+                image_url: museum.image_path || null,
                 additional_images: [],
             },
         });
     }
     catch (error) {
-        console.error('Error adding museum:', error);
+        console.error("Error adding museum:", error);
         return res.status(500).json({
-            message: 'Error adding museum',
+            message: "Error adding museum",
             error: error.message,
         });
     }
@@ -89,11 +95,13 @@ export const updateMuseum = async (req, res) => {
     const files = req.files;
     const file = files && Array.isArray(files) && files.length > 0 ? files[0] : null;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can edit museums' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can edit museums" });
     }
     if (!museum_id) {
-        return res.status(400).json({ message: 'Museum ID is required' });
+        return res.status(400).json({ message: "Museum ID is required" });
     }
     try {
         // Check if museum exists
@@ -101,7 +109,7 @@ export const updateMuseum = async (req, res) => {
             where: { museum_id: Number(museum_id) },
         });
         if (!existingMuseum) {
-            return res.status(404).json({ message: 'Museum not found' });
+            return res.status(404).json({ message: "Museum not found" });
         }
         // Build update data object with only provided fields
         const updateData = {};
@@ -115,11 +123,11 @@ export const updateMuseum = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            updateData.image_data = toStoredPath(file.path);
+            updateData.image_path = toStoredPath(file.path);
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
-            return res.status(400).json({ message: 'No fields to update' });
+            return res.status(400).json({ message: "No fields to update" });
         }
         // Check if new name already exists (if name is being changed)
         if (name && name !== existingMuseum.name) {
@@ -127,7 +135,9 @@ export const updateMuseum = async (req, res) => {
                 where: { name: name },
             });
             if (museumWithName) {
-                return res.status(400).json({ message: 'Museum with this name already exists' });
+                return res
+                    .status(400)
+                    .json({ message: "Museum with this name already exists" });
             }
         }
         // Update the museum
@@ -146,28 +156,28 @@ export const updateMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: updatedMuseum.museum_id,
-                            image_data: toStoredPath(f.path)
-                        }
+                            image_path: toStoredPath(f.path),
+                        },
                     });
                 }
                 catch (err) {
-                    console.error('Error processing additional museum image during update:', err);
+                    console.error("Error processing additional museum image during update:", err);
                 }
             });
             await Promise.all(imagePromises);
         }
         return res.status(200).json({
-            message: 'Museum updated successfully',
+            message: "Museum updated successfully",
             museum: {
                 ...updatedMuseum,
-                image_url: updatedMuseum.image_data || null,
+                image_url: updatedMuseum.image_path || null,
             },
         });
     }
     catch (error) {
-        console.error('Error updating museum:', error);
+        console.error("Error updating museum:", error);
         return res.status(500).json({
-            message: 'Error updating museum',
+            message: "Error updating museum",
             error: error.message,
         });
     }
@@ -176,11 +186,13 @@ export const updateMuseum = async (req, res) => {
 export const deleteMuseum = async (req, res) => {
     const { museum_id } = req.params;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can delete museums' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can delete museums" });
     }
     if (!museum_id) {
-        return res.status(400).json({ message: 'Museum ID is required' });
+        return res.status(400).json({ message: "Museum ID is required" });
     }
     try {
         // Check if museum exists
@@ -188,21 +200,21 @@ export const deleteMuseum = async (req, res) => {
             where: { museum_id: Number(museum_id) },
         });
         if (!existingMuseum) {
-            return res.status(404).json({ message: 'Museum not found' });
+            return res.status(404).json({ message: "Museum not found" });
         }
         // Delete the museum (cascades to related tickets)
         await prisma.museum.delete({
             where: { museum_id: Number(museum_id) },
         });
         return res.status(200).json({
-            message: 'Museum deleted successfully',
+            message: "Museum deleted successfully",
             deletedMuseumId: Number(museum_id),
         });
     }
     catch (error) {
-        console.error('Error deleting museum:', error);
+        console.error("Error deleting museum:", error);
         return res.status(500).json({
-            message: 'Error deleting museum',
+            message: "Error deleting museum",
             error: error.message,
         });
     }
@@ -216,30 +228,30 @@ export const getAllMuseums = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        image_data: true,
-                    }
-                }
+                        image_path: true,
+                    },
+                },
             },
             orderBy: {
-                museum_id: 'desc',
+                museum_id: "desc",
             },
         });
         // Transform museums to include image URLs
-        const museumsWithImages = museums.map(museum => ({
+        const museumsWithImages = museums.map((museum) => ({
             ...museum,
-            image_url: museum.image_data || null,
-            additional_images: museum.images.map(img => img.image_data)
+            image_url: museum.image_path || null,
+            additional_images: museum.images.map((img) => img.image_path),
         }));
         return res.status(200).json({
-            message: 'Museums retrieved successfully',
+            message: "Museums retrieved successfully",
             count: museumsWithImages.length,
             museums: museumsWithImages,
         });
     }
     catch (error) {
-        console.error('Error fetching museums:', error);
+        console.error("Error fetching museums:", error);
         return res.status(500).json({
-            message: 'Error fetching museums',
+            message: "Error fetching museums",
             error: error.message,
         });
     }
@@ -248,7 +260,7 @@ export const getAllMuseums = async (req, res) => {
 export const getMuseumById = async (req, res) => {
     const { museum_id } = req.params;
     if (!museum_id) {
-        return res.status(400).json({ message: 'Museum ID is required' });
+        return res.status(400).json({ message: "Museum ID is required" });
     }
     try {
         const museum = await prisma.museum.findUnique({
@@ -264,27 +276,27 @@ export const getMuseumById = async (req, res) => {
                 images: {
                     select: {
                         image_id: true,
-                        image_data: true,
-                    }
-                }
+                        image_path: true,
+                    },
+                },
             },
         });
         if (!museum) {
-            return res.status(404).json({ message: 'Museum not found' });
+            return res.status(404).json({ message: "Museum not found" });
         }
         return res.status(200).json({
-            message: 'Museum retrieved successfully',
+            message: "Museum retrieved successfully",
             museum: {
                 ...museum,
-                image_url: museum.image_data || null,
-                additional_images: museum.images.map(img => img.image_data)
+                image_url: museum.image_path || null,
+                additional_images: museum.images.map((img) => img.image_path),
             },
         });
     }
     catch (error) {
-        console.error('Error fetching museum:', error);
+        console.error("Error fetching museum:", error);
         return res.status(500).json({
-            message: 'Error fetching museum',
+            message: "Error fetching museum",
             error: error.message,
         });
     }
@@ -293,7 +305,7 @@ export const getMuseumById = async (req, res) => {
 export const getMuseumImage = async (req, res) => {
     const { museum_id } = req.params;
     if (!museum_id) {
-        return res.status(400).json({ message: 'Museum ID is required' });
+        return res.status(400).json({ message: "Museum ID is required" });
     }
     try {
         const museum = await prisma.museum.findUnique({
@@ -301,21 +313,23 @@ export const getMuseumImage = async (req, res) => {
             select: {
                 museum_id: true,
                 name: true,
-                image_data: true,
+                image_path: true,
             },
         });
         if (!museum) {
-            return res.status(404).json({ message: 'Museum not found' });
+            return res.status(404).json({ message: "Museum not found" });
         }
-        if (!museum.image_data) {
-            return res.status(404).json({ message: 'No image available for this museum' });
+        if (!museum.image_path) {
+            return res
+                .status(404)
+                .json({ message: "No image available for this museum" });
         }
-        return sendStoredFile(res, museum.image_data, 'No image available for this museum');
+        return sendStoredFile(res, museum.image_path, "No image available for this museum");
     }
     catch (error) {
-        console.error('Error fetching museum image:', error);
+        console.error("Error fetching museum image:", error);
         return res.status(500).json({
-            message: 'Error fetching museum image',
+            message: "Error fetching museum image",
             error: error.message,
         });
     }
@@ -326,16 +340,18 @@ export const purchaseTicket = async (req, res) => {
     const { museum_id, price, payment_method } = req.body;
     // Verify user is authenticated
     if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized: Please log in' });
+        return res.status(401).json({ message: "Unauthorized: Please log in" });
     }
     // Verify user is a regular user (not admin)
-    if (req.user.type === 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Admins cannot purchase tickets' });
+    if (req.user.type === "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Admins cannot purchase tickets" });
     }
     // Validate required fields
     if (!museum_id || !price || !payment_method) {
         return res.status(400).json({
-            message: 'Missing required fields: museum_id, price, and payment_method are required',
+            message: "Missing required fields: museum_id, price, and payment_method are required",
         });
     }
     try {
@@ -344,11 +360,11 @@ export const purchaseTicket = async (req, res) => {
             where: { museum_id: Number(museum_id) },
         });
         if (!museum) {
-            return res.status(404).json({ message: 'Museum not found' });
+            return res.status(404).json({ message: "Museum not found" });
         }
         // Validate price
         if (price <= 0) {
-            return res.status(400).json({ message: 'Price must be greater than 0' });
+            return res.status(400).json({ message: "Price must be greater than 0" });
         }
         // Create ticket and payment in a transaction
         const result = await prisma.$transaction(async (tx) => {
@@ -360,7 +376,7 @@ export const purchaseTicket = async (req, res) => {
                     purchase_date: new Date(),
                     ticket_pdf: `ticket_${Date.now()}.pdf`, // Placeholder - implement actual PDF generation
                     price: Number(price),
-                    payment_status: 'completed',
+                    payment_status: "completed",
                 },
             });
             // Create the payment record
@@ -375,17 +391,17 @@ export const purchaseTicket = async (req, res) => {
             return { ticket, payment };
         });
         // Create and emit notification to user
-        await createNotification(req.user.userId, 'ticket_purchased', 'Ticket Purchased Successfully', `Your ticket for ${museum.name} has been purchased successfully. Amount: Rs. ${price}`, museum.museum_id);
+        await createNotification(req.user.userId, "ticket_purchased", "Ticket Purchased Successfully", `Your ticket for ${museum.name} has been purchased successfully. Amount: Rs. ${price}`, museum.museum_id);
         return res.status(201).json({
-            message: 'Ticket purchased successfully',
+            message: "Ticket purchased successfully",
             ticket: result.ticket,
             payment: result.payment,
         });
     }
     catch (error) {
-        console.error('Error purchasing ticket:', error);
+        console.error("Error purchasing ticket:", error);
         return res.status(500).json({
-            message: 'Error purchasing ticket',
+            message: "Error purchasing ticket",
             error: error.message,
         });
     }
@@ -394,7 +410,7 @@ export const purchaseTicket = async (req, res) => {
 export const getUserTickets = async (req, res) => {
     // Verify user is authenticated
     if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized: Please log in' });
+        return res.status(401).json({ message: "Unauthorized: Please log in" });
     }
     try {
         const tickets = await prisma.ticket.findMany({
@@ -404,19 +420,19 @@ export const getUserTickets = async (req, res) => {
                 payments: true,
             },
             orderBy: {
-                purchase_date: 'desc',
+                purchase_date: "desc",
             },
         });
         return res.status(200).json({
-            message: 'Tickets retrieved successfully',
+            message: "Tickets retrieved successfully",
             count: tickets.length,
             tickets,
         });
     }
     catch (error) {
-        console.error('Error fetching user tickets:', error);
+        console.error("Error fetching user tickets:", error);
         return res.status(500).json({
-            message: 'Error fetching tickets',
+            message: "Error fetching tickets",
             error: error.message,
         });
     }
@@ -426,10 +442,10 @@ export const getTicketById = async (req, res) => {
     const { ticket_id } = req.params;
     // Verify user is authenticated
     if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized: Please log in' });
+        return res.status(401).json({ message: "Unauthorized: Please log in" });
     }
     if (!ticket_id) {
-        return res.status(400).json({ message: 'Ticket ID is required' });
+        return res.status(400).json({ message: "Ticket ID is required" });
     }
     try {
         const ticket = await prisma.ticket.findUnique({
@@ -440,21 +456,23 @@ export const getTicketById = async (req, res) => {
             },
         });
         if (!ticket) {
-            return res.status(404).json({ message: 'Ticket not found' });
+            return res.status(404).json({ message: "Ticket not found" });
         }
         // Check if user owns this ticket or is an admin
-        if (ticket.user_id !== req.user.userId && req.user.type !== 'admin') {
-            return res.status(403).json({ message: 'Forbidden: You do not own this ticket' });
+        if (ticket.user_id !== req.user.userId && req.user.type !== "admin") {
+            return res
+                .status(403)
+                .json({ message: "Forbidden: You do not own this ticket" });
         }
         return res.status(200).json({
-            message: 'Ticket retrieved successfully',
+            message: "Ticket retrieved successfully",
             ticket,
         });
     }
     catch (error) {
-        console.error('Error fetching ticket:', error);
+        console.error("Error fetching ticket:", error);
         return res.status(500).json({
-            message: 'Error fetching ticket',
+            message: "Error fetching ticket",
             error: error.message,
         });
     }

@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response } from "express";
 export declare const getStoryImage: (req: Request, res: Response) => Promise<void | Response<any, Record<string, any>>>;
 export declare const getHeritageSiteAdditionalImage: (req: Request, res: Response) => Promise<void | Response<any, Record<string, any>>>;
 export declare const getMuseumAdditionalImage: (req: Request, res: Response) => Promise<void | Response<any, Record<string, any>>>;

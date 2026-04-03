@@ -1,4 +1,4 @@
-import prisma from '../models/index.js';
+import prisma from "../models/index.js";
 // Preview configuration - First 20% of content as free preview (min 50 chars)
 const getPreviewLength = (content) => {
     if (!content)
@@ -20,7 +20,7 @@ export const getStoriesPreview = async (req, res) => {
                 },
             },
             orderBy: {
-                story_id: 'desc',
+                story_id: "desc",
             },
         });
         // Get user id if authenticated to check purchased stories
@@ -28,10 +28,10 @@ export const getStoriesPreview = async (req, res) => {
         let purchasedStoryIds = [];
         if (userId) {
             const purchases = await prisma.storyPayment.findMany({
-                where: { user_id: userId, status: 'completed' },
-                select: { story_id: true }
+                where: { user_id: userId, status: "completed" },
+                select: { story_id: true },
             });
-            purchasedStoryIds = purchases.map(p => p.story_id);
+            purchasedStoryIds = purchases.map((p) => p.story_id);
         }
         // Return preview version of stories (truncated content)
         const storiesWithPreview = stories.map((story) => {
@@ -41,25 +41,25 @@ export const getStoriesPreview = async (req, res) => {
                 site_id: story.site_id,
                 title: story.title,
                 preview: story.content.length > previewLen
-                    ? story.content.substring(0, previewLen) + '...'
+                    ? story.content.substring(0, previewLen) + "..."
                     : story.content,
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_data || null,
+                media_url: story.media_path || null,
                 has_full_content: story.content.length > previewLen,
                 is_unlocked: purchasedStoryIds.includes(story.story_id),
                 site: story.site,
             };
         });
         return res.status(200).json({
-            message: 'Story previews retrieved successfully',
+            message: "Story previews retrieved successfully",
             count: storiesWithPreview.length,
             stories: storiesWithPreview,
         });
     }
     catch (error) {
-        console.error('Error fetching story previews:', error);
+        console.error("Error fetching story previews:", error);
         return res.status(500).json({
-            message: 'Error fetching story previews',
+            message: "Error fetching story previews",
             error: error.message,
         });
     }
@@ -68,7 +68,7 @@ export const getStoriesPreview = async (req, res) => {
 export const getStoryPreviewById = async (req, res) => {
     const { story_id } = req.params;
     if (!story_id) {
-        return res.status(400).json({ message: 'Story ID is required' });
+        return res.status(400).json({ message: "Story ID is required" });
     }
     try {
         const story = await prisma.story.findUnique({
@@ -86,7 +86,7 @@ export const getStoryPreviewById = async (req, res) => {
             },
         });
         if (!story) {
-            return res.status(404).json({ message: 'Story not found' });
+            return res.status(404).json({ message: "Story not found" });
         }
         // Return preview version of the story
         const previewLen = getPreviewLength(story.content);
@@ -95,22 +95,22 @@ export const getStoryPreviewById = async (req, res) => {
             site_id: story.site_id,
             title: story.title,
             preview: story.content.length > previewLen
-                ? story.content.substring(0, previewLen) + '...'
+                ? story.content.substring(0, previewLen) + "..."
                 : story.content,
             god_or_goddess_name: story.god_or_goddess_name,
-            media_url: story.media_data || null,
+            media_url: story.media_path || null,
             has_full_content: story.content.length > previewLen,
             site: story.site,
         };
         return res.status(200).json({
-            message: 'Story preview retrieved successfully',
+            message: "Story preview retrieved successfully",
             story: storyPreview,
         });
     }
     catch (error) {
-        console.error('Error fetching story preview:', error);
+        console.error("Error fetching story preview:", error);
         return res.status(500).json({
-            message: 'Error fetching story preview',
+            message: "Error fetching story preview",
             error: error.message,
         });
     }
@@ -119,7 +119,7 @@ export const getStoryPreviewById = async (req, res) => {
 export const getStoriesPreviewBySite = async (req, res) => {
     const { site_id } = req.params;
     if (!site_id) {
-        return res.status(400).json({ message: 'Site ID is required' });
+        return res.status(400).json({ message: "Site ID is required" });
     }
     try {
         // Verify site exists
@@ -127,7 +127,7 @@ export const getStoriesPreviewBySite = async (req, res) => {
             where: { site_id: Number(site_id) },
         });
         if (!site) {
-            return res.status(404).json({ message: 'Heritage site not found' });
+            return res.status(404).json({ message: "Heritage site not found" });
         }
         const stories = await prisma.story.findMany({
             where: { site_id: Number(site_id) },
@@ -142,7 +142,7 @@ export const getStoriesPreviewBySite = async (req, res) => {
                 },
             },
             orderBy: {
-                story_id: 'desc',
+                story_id: "desc",
             },
         });
         // Return preview version of stories
@@ -153,16 +153,16 @@ export const getStoriesPreviewBySite = async (req, res) => {
                 site_id: story.site_id,
                 title: story.title,
                 preview: story.content.length > previewLen
-                    ? story.content.substring(0, previewLen) + '...'
+                    ? story.content.substring(0, previewLen) + "..."
                     : story.content,
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_data || null,
+                media_url: story.media_path || null,
                 has_full_content: story.content.length > previewLen,
                 site: story.site,
             };
         });
         return res.status(200).json({
-            message: 'Story previews for site retrieved successfully',
+            message: "Story previews for site retrieved successfully",
             site_id: Number(site_id),
             site_name: site.name,
             count: storiesWithPreview.length,
@@ -170,9 +170,9 @@ export const getStoriesPreviewBySite = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Error fetching story previews by site:', error);
+        console.error("Error fetching story previews by site:", error);
         return res.status(500).json({
-            message: 'Error fetching story previews by site',
+            message: "Error fetching story previews by site",
             error: error.message,
         });
     }
@@ -184,11 +184,11 @@ export const getFullStory = async (req, res) => {
     // Require authentication for full story access
     if (!req.user) {
         return res.status(401).json({
-            message: 'Authentication required to access full story. Please purchase access.'
+            message: "Authentication required to access full story. Please purchase access.",
         });
     }
     if (!story_id) {
-        return res.status(400).json({ message: 'Story ID is required' });
+        return res.status(400).json({ message: "Story ID is required" });
     }
     try {
         const story = await prisma.story.findUnique({
@@ -198,39 +198,39 @@ export const getFullStory = async (req, res) => {
             },
         });
         if (!story) {
-            return res.status(404).json({ message: 'Story not found' });
+            return res.status(404).json({ message: "Story not found" });
         }
         // Check if user has purchased access to this story
         const hasAccess = await prisma.storyPayment.findFirst({
             where: {
                 user_id: req.user.userId,
                 story_id: Number(story_id),
-                status: 'completed'
-            }
+                status: "completed",
+            },
         });
         const previewLen = getPreviewLength(story.content);
         if (!hasAccess && story.content.length > previewLen) {
             return res.status(403).json({
-                message: 'You have not purchased access to this full story.'
+                message: "You have not purchased access to this full story.",
             });
         }
         return res.status(200).json({
-            message: 'Full story retrieved successfully',
+            message: "Full story retrieved successfully",
             story: {
                 story_id: story.story_id,
                 site_id: story.site_id,
                 title: story.title,
                 content: story.content, // Full content
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_data || null,
+                media_url: story.media_path || null,
                 site: story.site,
             },
         });
     }
     catch (error) {
-        console.error('Error fetching full story:', error);
+        console.error("Error fetching full story:", error);
         return res.status(500).json({
-            message: 'Error fetching full story',
+            message: "Error fetching full story",
             error: error.message,
         });
     }

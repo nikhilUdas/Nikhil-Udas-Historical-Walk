@@ -1,19 +1,21 @@
-import prisma from '../models/index.js';
-import '../middleware/auth.js';
-import { broadcastNotificationToAll } from '../services/socketService.js';
-import { toStoredPath } from '../utils/fileUpload.js';
+import "../middleware/auth.js";
+import prisma from "../models/index.js";
+import { broadcastNotificationToAll } from "../services/socketService.js";
+import { toStoredPath } from "../utils/fileUpload.js";
 // US-8: Add a new story
 export const addStory = async (req, res) => {
     const { site_id, title, content, god_or_goddess_name } = req.body;
     const file = req.file;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can add stories' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can add stories" });
     }
     // Validate required fields
     if (!site_id || !title || !content || !god_or_goddess_name || !file) {
         return res.status(400).json({
-            message: 'Missing required fields: site_id, title, content, god_or_goddess_name, and media file are required'
+            message: "Missing required fields: site_id, title, content, god_or_goddess_name, and media file are required",
         });
     }
     try {
@@ -22,7 +24,7 @@ export const addStory = async (req, res) => {
             where: { site_id: Number(site_id) },
         });
         if (!site) {
-            return res.status(404).json({ message: 'Heritage site not found' });
+            return res.status(404).json({ message: "Heritage site not found" });
         }
         // Create the story
         const story = await prisma.story.create({
@@ -31,7 +33,7 @@ export const addStory = async (req, res) => {
                 title,
                 content,
                 god_or_goddess_name,
-                media_data: toStoredPath(file.path),
+                media_path: toStoredPath(file.path),
             },
             include: {
                 site: true,
@@ -39,25 +41,25 @@ export const addStory = async (req, res) => {
         });
         // Broadcast notification to all users about new story
         const notification = {
-            type: 'story_added',
-            title: 'New Story Added',
+            type: "story_added",
+            title: "New Story Added",
             message: `A new story "${title}" has been added to ${site.name}. Learn about ${god_or_goddess_name}!`,
             related_id: site_id,
         };
         await broadcastNotificationToAll(notification);
         return res.status(201).json({
-            message: 'Story added successfully',
+            message: "Story added successfully",
             story: {
                 ...story,
-                media_url: story.media_data,
+                media_url: story.media_path,
             },
         });
     }
     catch (error) {
-        console.error('Error adding story:', error);
+        console.error("Error adding story:", error);
         return res.status(500).json({
-            message: 'Error adding story',
-            error: error.message
+            message: "Error adding story",
+            error: error.message,
         });
     }
 };
@@ -67,11 +69,13 @@ export const updateStory = async (req, res) => {
     const { site_id, title, content, god_or_goddess_name } = req.body;
     const file = req.file;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can edit stories' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can edit stories" });
     }
     if (!story_id) {
-        return res.status(400).json({ message: 'Story ID is required' });
+        return res.status(400).json({ message: "Story ID is required" });
     }
     try {
         // Check if story exists
@@ -79,7 +83,7 @@ export const updateStory = async (req, res) => {
             where: { story_id: Number(story_id) },
         });
         if (!existingStory) {
-            return res.status(404).json({ message: 'Story not found' });
+            return res.status(404).json({ message: "Story not found" });
         }
         // Build update data object with only provided fields
         const updateData = {};
@@ -89,7 +93,7 @@ export const updateStory = async (req, res) => {
                 where: { site_id: Number(site_id) },
             });
             if (!site) {
-                return res.status(404).json({ message: 'Heritage site not found' });
+                return res.status(404).json({ message: "Heritage site not found" });
             }
             updateData.site_id = Number(site_id);
         }
@@ -100,10 +104,10 @@ export const updateStory = async (req, res) => {
         if (god_or_goddess_name !== undefined)
             updateData.god_or_goddess_name = god_or_goddess_name;
         if (file)
-            updateData.media_data = toStoredPath(file.path);
+            updateData.media_path = toStoredPath(file.path);
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
-            return res.status(400).json({ message: 'No fields to update' });
+            return res.status(400).json({ message: "No fields to update" });
         }
         // Update the story
         const updatedStory = await prisma.story.update({
@@ -114,18 +118,18 @@ export const updateStory = async (req, res) => {
             },
         });
         return res.status(200).json({
-            message: 'Story updated successfully',
+            message: "Story updated successfully",
             story: {
                 ...updatedStory,
-                media_url: updatedStory.media_data || null,
+                media_url: updatedStory.media_path || null,
             },
         });
     }
     catch (error) {
-        console.error('Error updating story:', error);
+        console.error("Error updating story:", error);
         return res.status(500).json({
-            message: 'Error updating story',
-            error: error.message
+            message: "Error updating story",
+            error: error.message,
         });
     }
 };
@@ -133,11 +137,13 @@ export const updateStory = async (req, res) => {
 export const deleteStory = async (req, res) => {
     const { story_id } = req.params;
     // Verify user is admin
-    if (req.user?.type !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Only admins can delete stories' });
+    if (req.user?.type !== "admin") {
+        return res
+            .status(403)
+            .json({ message: "Forbidden: Only admins can delete stories" });
     }
     if (!story_id) {
-        return res.status(400).json({ message: 'Story ID is required' });
+        return res.status(400).json({ message: "Story ID is required" });
     }
     try {
         // Check if story exists
@@ -145,22 +151,22 @@ export const deleteStory = async (req, res) => {
             where: { story_id: Number(story_id) },
         });
         if (!existingStory) {
-            return res.status(404).json({ message: 'Story not found' });
+            return res.status(404).json({ message: "Story not found" });
         }
         // Delete the story
         await prisma.story.delete({
             where: { story_id: Number(story_id) },
         });
         return res.status(200).json({
-            message: 'Story deleted successfully',
+            message: "Story deleted successfully",
             deletedStoryId: Number(story_id),
         });
     }
     catch (error) {
-        console.error('Error deleting story:', error);
+        console.error("Error deleting story:", error);
         return res.status(500).json({
-            message: 'Error deleting story',
-            error: error.message
+            message: "Error deleting story",
+            error: error.message,
         });
     }
 };
@@ -172,23 +178,23 @@ export const getAllStories = async (req, res) => {
                 site: true,
             },
             orderBy: {
-                story_id: 'desc',
+                story_id: "desc",
             },
         });
         return res.status(200).json({
-            message: 'Stories retrieved successfully',
+            message: "Stories retrieved successfully",
             count: stories.length,
-            stories: stories.map(s => ({
+            stories: stories.map((s) => ({
                 ...s,
-                media_url: s.media_data || null,
+                media_url: s.media_path || null,
             })),
         });
     }
     catch (error) {
-        console.error('Error fetching stories:', error);
+        console.error("Error fetching stories:", error);
         return res.status(500).json({
-            message: 'Error fetching stories',
-            error: error.message
+            message: "Error fetching stories",
+            error: error.message,
         });
     }
 };
@@ -196,7 +202,7 @@ export const getAllStories = async (req, res) => {
 export const getStoryById = async (req, res) => {
     const { story_id } = req.params;
     if (!story_id) {
-        return res.status(400).json({ message: 'Story ID is required' });
+        return res.status(400).json({ message: "Story ID is required" });
     }
     try {
         const story = await prisma.story.findUnique({
@@ -206,21 +212,21 @@ export const getStoryById = async (req, res) => {
             },
         });
         if (!story) {
-            return res.status(404).json({ message: 'Story not found' });
+            return res.status(404).json({ message: "Story not found" });
         }
         return res.status(200).json({
-            message: 'Story retrieved successfully',
+            message: "Story retrieved successfully",
             story: {
                 ...story,
-                media_url: story.media_data || null,
+                media_url: story.media_path || null,
             },
         });
     }
     catch (error) {
-        console.error('Error fetching story:', error);
+        console.error("Error fetching story:", error);
         return res.status(500).json({
-            message: 'Error fetching story',
-            error: error.message
+            message: "Error fetching story",
+            error: error.message,
         });
     }
 };

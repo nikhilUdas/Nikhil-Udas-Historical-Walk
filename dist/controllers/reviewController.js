@@ -1,17 +1,17 @@
 import prisma from '../models/index.js';
-// Submit or update a review for a museum
+// Submit or update a review for a museum or heritage site
 export const submitReview = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { museum_id, rating, thoughts } = req.body;
+        const { museum_id, site_id, rating, thoughts } = req.body;
         // Validation
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized: Please log in' });
             return;
         }
-        if (!museum_id || rating === undefined || !thoughts) {
+        if ((!museum_id && !site_id) || rating === undefined || !thoughts) {
             res.status(400).json({
-                message: 'Missing required fields: museum_id, rating (1-5), and thoughts are required',
+                message: 'Missing required fields: museum_id or site_id, rating (1-5), and thoughts are required',
             });
             return;
         }
@@ -27,23 +27,45 @@ export const submitReview = async (req, res) => {
             });
             return;
         }
-        // Check if museum exists
-        const museum = await prisma.museum.findUnique({
-            where: { museum_id: Number(museum_id) },
-        });
-        if (!museum) {
-            res.status(404).json({ message: 'Museum not found' });
-            return;
-        }
-        // Check if user has already reviewed this museum
-        const existingReview = await prisma.review.findUnique({
-            where: {
-                user_id_museum_id: {
-                    user_id: userId,
-                    museum_id: Number(museum_id),
+        let existingReview = null;
+        if (museum_id) {
+            // Check if museum exists
+            const museum = await prisma.museum.findUnique({
+                where: { museum_id: Number(museum_id) },
+            });
+            if (!museum) {
+                res.status(404).json({ message: 'Museum not found' });
+                return;
+            }
+            // Check if user has already reviewed this museum
+            existingReview = await prisma.review.findUnique({
+                where: {
+                    user_id_museum_id: {
+                        user_id: userId,
+                        museum_id: Number(museum_id),
+                    },
                 },
-            },
-        });
+            });
+        }
+        else if (site_id) {
+            // Check if heritage site exists
+            const site = await prisma.heritageSite.findUnique({
+                where: { site_id: Number(site_id) },
+            });
+            if (!site) {
+                res.status(404).json({ message: 'Heritage site not found' });
+                return;
+            }
+            // Check if user has already reviewed this site
+            existingReview = await prisma.review.findUnique({
+                where: {
+                    user_id_site_id: {
+                        user_id: userId,
+                        site_id: Number(site_id),
+                    },
+                },
+            });
+        }
         let review;
         if (existingReview) {
             // Update existing review
@@ -67,6 +89,12 @@ export const submitReview = async (req, res) => {
                             name: true,
                         },
                     },
+                    site: {
+                        select: {
+                            site_id: true,
+                            name: true,
+                        },
+                    },
                 },
             });
             res.status(200).json({
@@ -79,7 +107,8 @@ export const submitReview = async (req, res) => {
             review = await prisma.review.create({
                 data: {
                     user_id: userId,
-                    museum_id: Number(museum_id),
+                    museum_id: museum_id ? Number(museum_id) : undefined,
+                    site_id: site_id ? Number(site_id) : undefined,
                     rating: Number(rating),
                     thoughts,
                 },
@@ -94,6 +123,12 @@ export const submitReview = async (req, res) => {
                     museum: {
                         select: {
                             museum_id: true,
+                            name: true,
+                        },
+                    },
+                    site: {
+                        select: {
+                            site_id: true,
                             name: true,
                         },
                     },
@@ -113,21 +148,37 @@ export const submitReview = async (req, res) => {
         });
     }
 };
-// Get review summary for a museum
+// Get review summary for a museum or site
 export const getReviewSummary = async (req, res) => {
     try {
-        const { museum_id } = req.params;
-        // Check if museum exists
-        const museum = await prisma.museum.findUnique({
-            where: { museum_id: Number(museum_id) },
-        });
-        if (!museum) {
-            res.status(404).json({ message: 'Museum not found' });
+        const { museum_id, site_id } = req.query;
+        if (!museum_id && !site_id) {
+            res.status(400).json({ message: 'Museum ID or Site ID is required' });
             return;
         }
-        // Get all reviews for the museum
+        const filter = {};
+        let itemTitle = 'Item';
+        if (museum_id) {
+            filter.museum_id = Number(museum_id);
+            const museum = await prisma.museum.findUnique({ where: { museum_id: Number(museum_id) } });
+            if (!museum) {
+                res.status(404).json({ message: 'Museum not found' });
+                return;
+            }
+            itemTitle = museum.name;
+        }
+        else {
+            filter.site_id = Number(site_id);
+            const site = await prisma.heritageSite.findUnique({ where: { site_id: Number(site_id) } });
+            if (!site) {
+                res.status(404).json({ message: 'Heritage site not found' });
+                return;
+            }
+            itemTitle = site.name;
+        }
+        // Get all reviews for the target
         const reviews = await prisma.review.findMany({
-            where: { museum_id: Number(museum_id) },
+            where: filter,
             include: {
                 user: {
                     select: {
@@ -152,9 +203,9 @@ export const getReviewSummary = async (req, res) => {
             '1': reviews.filter((r) => r.rating === 1).length,
         };
         res.status(200).json({
-            museum: {
-                museum_id: museum.museum_id,
-                name: museum.name,
+            item: {
+                id: museum_id || site_id,
+                name: itemTitle,
             },
             averageRating,
             totalReviews,
@@ -170,7 +221,7 @@ export const getReviewSummary = async (req, res) => {
         });
     }
 };
-// Get all reviews across all museums
+// Get all reviews across all museums and sites
 export const getAllReviews = async (req, res) => {
     try {
         const reviews = await prisma.review.findMany({
@@ -185,7 +236,12 @@ export const getAllReviews = async (req, res) => {
                     select: {
                         museum_id: true,
                         name: true,
-                        description: true,
+                    },
+                },
+                site: {
+                    select: {
+                        site_id: true,
+                        name: true,
                     },
                 },
             },
@@ -235,7 +291,12 @@ export const getUserReviews = async (req, res) => {
                     select: {
                         museum_id: true,
                         name: true,
-                        description: true,
+                    },
+                },
+                site: {
+                    select: {
+                        site_id: true,
+                        name: true,
                     },
                 },
             },

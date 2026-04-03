@@ -7,15 +7,15 @@ import { initializeSocket } from "./services/socketService.js";
 // ❗ FIX 1: Correct route import (your file has 'userRoutes')
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
 import adminStoryRoutes from "./routes/adminStoryRoute.js";
+import favoriteRoutes from "./routes/favoriteRoute.js";
 import heritageSiteRoutes from "./routes/heritageSiteRoute.js";
+import mediaRoutes from "./routes/mediaRoute.js";
 import museumRoutes from "./routes/museumRoute.js";
 import notificationRoutes from "./routes/notificationRoute.js";
 import paymentRoutes from "./routes/paymentRoute.js";
 import storyRoutes from "./routes/storyRoute.js";
 import ticketRoutes from "./routes/ticketRoute.js";
 import userRoutes from "./routes/userRoute.js";
-import mediaRoutes from "./routes/mediaRoute.js";
-import favoriteRoutes from "./routes/favoriteRoute.js";
 import { registerUser } from "./controllers/userController.js";
 const app = express();
 const httpServer = http.createServer(app);
@@ -23,11 +23,11 @@ const httpServer = http.createServer(app);
 initializeSocket(httpServer);
 // CORS configuration - MUST be before other middleware
 app.use(cors({
-    origin: ['http://localhost:8081', 'http://127.0.0.1:8081'], // Your frontend URL
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: ["http://localhost:8081", "http://127.0.0.1:8081"], // Your frontend URL
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
 }));
 // Debug middleware to log all requests (must be first - before body parsing)
 app.use((req, res, next) => {
@@ -39,21 +39,21 @@ app.use((req, res, next) => {
     // Write to both stdout and console
     process.stdout.write(logMsg);
     console.log(logMsg);
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
     next();
 });
 // Body parsing middleware - AFTER request logging
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 // Routes
 app.get("/", async (req, res) => {
     res.send("This is the backend server of Historical Walk!");
 });
 // Test route
 app.get("/api/test", (req, res) => {
-    console.log(' TEST ENDPOINT HIT! ');
+    console.log(" TEST ENDPOINT HIT! ");
     res.json({
         message: "API routes are working!",
         timestamp: new Date().toISOString(),
@@ -61,8 +61,8 @@ app.get("/api/test", (req, res) => {
 });
 // Simple POST test endpoint
 app.post("/api/test", (req, res) => {
-    console.log(' POST TEST ENDPOINT HIT! ');
-    console.log('Body received:', req.body);
+    console.log(" POST TEST ENDPOINT HIT! ");
+    console.log("Body received:", req.body);
     res.json({
         message: "POST endpoint is working!",
         body: req.body,
@@ -70,7 +70,9 @@ app.post("/api/test", (req, res) => {
     });
 });
 // User routes - mounted at /api/users
-app.use("/api/users", (req, res, next) => { next(); }, userRoutes);
+app.use("/api/users", (req, res, next) => {
+    next();
+}, userRoutes);
 // Admin story routes - mounted at /api/admin/stories
 app.use("/api/admin/stories", adminStoryRoutes);
 // Admin heritage site routes - mounted at /api/admin/sites
@@ -120,12 +122,12 @@ app.use((req, res) => {
 });
 // Final global error handler to capture 500s
 app.use((err, req, res, next) => {
-    console.error(' GLOBAL ERROR HANDLER CAUGHT:', err);
+    console.error(" GLOBAL ERROR HANDLER CAUGHT:", err);
     const status = err.status || err.statusCode || 500;
     res.status(status).json({
-        message: err.message || 'Internal Server Error',
-        error: process.env.NODE_ENV === 'development' ? err : {},
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+        message: err.message || "Internal Server Error",
+        error: process.env.NODE_ENV === "development" ? err : {},
+        stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
     });
 });
 const PORT = Number(process.env.PORT) || 8000;
