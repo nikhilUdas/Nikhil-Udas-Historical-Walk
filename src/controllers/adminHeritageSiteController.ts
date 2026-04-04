@@ -3,7 +3,7 @@ import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
 import { toStoredPath } from "../utils/fileUpload.js";
-import { sendStoredFile } from "../utils/mediaPath.js";
+import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 
 // Add a new heritage site
 export const addHeritageSite = async (req: Request, res: Response) => {
@@ -88,7 +88,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
       message: "Heritage site added successfully",
       site: {
         ...site,
-        image_url: site.photo_url || site.image_path || null,
+        image_url: getFullUrl(req, site.photo_url || site.image_path),
         additional_images: [],
       },
     });
@@ -194,7 +194,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
       message: "Heritage site updated successfully",
       site: {
         ...updatedSite,
-        image_url: updatedSite.photo_url || updatedSite.image_path || null,
+        image_url: getFullUrl(req, updatedSite.photo_url || updatedSite.image_path),
       },
     });
   } catch (error: any) {
@@ -303,8 +303,8 @@ export const getAllHeritageSites = async (req: Request, res: Response) => {
         full_description: isUnlocked ? site.description : null,
         is_unlocked: isUnlocked,
         has_full_content: hasFullContent,
-        image_url: site.photo_url || site.image_path || null,
-        additional_images: site.images.map((img) => img.image_path),
+        image_url: getFullUrl(req, site.photo_url || site.image_path),
+        additional_images: site.images.map((img) => getFullUrl(req, img.image_path)),
       };
     });
 
@@ -399,8 +399,8 @@ export const getHeritageSiteById = async (req: Request, res: Response) => {
         full_description: isUnlocked ? site.description : null,
         is_unlocked: isUnlocked,
         has_full_content: hasFullContent,
-        image_url: site.photo_url || site.image_path || null,
-        additional_images: site.images.map((img) => img.image_path),
+        image_url: getFullUrl(req, site.photo_url || site.image_path),
+        additional_images: site.images.map((img) => getFullUrl(req, img.image_path)),
       },
     });
   } catch (error: any) {

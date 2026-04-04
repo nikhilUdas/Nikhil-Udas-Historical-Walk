@@ -20,9 +20,13 @@ import ticketRoutes from "./routes/ticketRoute.js";
 import userRoutes from "./routes/userRoute.js";
 
 import { registerUser } from "./controllers/userController.js";
+import { initializeUploadDirectories } from "./utils/fileUpload.js";
 
 const app = express();
 const httpServer = http.createServer(app);
+
+// Initialize upload directories
+initializeUploadDirectories();
 
 // Initialize Socket.io
 initializeSocket(httpServer);

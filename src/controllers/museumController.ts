@@ -3,7 +3,7 @@ import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
 import { toStoredPath } from "../utils/fileUpload.js";
-import { sendStoredFile } from "../utils/mediaPath.js";
+import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 import { createNotification } from "./notificationController.js";
 
 // ==================== ADMIN OPERATIONS ====================
@@ -89,7 +89,7 @@ export const addMuseum = async (req: Request, res: Response) => {
       message: "Museum added successfully",
       museum: {
         ...museum,
-        image_url: museum.image_path || null,
+        image_url: getFullUrl(req, museum.image_path),
         additional_images: [],
       },
     });
@@ -196,7 +196,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
       message: "Museum updated successfully",
       museum: {
         ...updatedMuseum,
-        image_url: updatedMuseum.image_path || null,
+        image_url: getFullUrl(req, updatedMuseum.image_path),
       },
     });
   } catch (error: any) {
@@ -273,8 +273,8 @@ export const getAllMuseums = async (req: Request, res: Response) => {
     // Transform museums to include image URLs
     const museumsWithImages = museums.map((museum) => ({
       ...museum,
-      image_url: museum.image_path || null,
-      additional_images: museum.images.map((img) => img.image_path),
+      image_url: getFullUrl(req, museum.image_path),
+      additional_images: museum.images.map((img) => getFullUrl(req, img.image_path)),
     }));
 
     return res.status(200).json({
@@ -327,8 +327,8 @@ export const getMuseumById = async (req: Request, res: Response) => {
       message: "Museum retrieved successfully",
       museum: {
         ...museum,
-        image_url: museum.image_path || null,
-        additional_images: museum.images.map((img) => img.image_path),
+        image_url: getFullUrl(req, museum.image_path),
+        additional_images: museum.images.map((img) => getFullUrl(req, img.image_path)),
       },
     });
   } catch (error: any) {

@@ -2,10 +2,21 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 
-const ensureDirectory = (dirPath: string) => {
+export const ensureDirectory = (dirPath: string) => {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
+};
+
+export const initializeUploadDirectories = () => {
+  const baseDir = path.join(process.cwd(), "uploads");
+  const subDirs = ["stories", "users", "museums", "sites", "misc"];
+  
+  ensureDirectory(baseDir);
+  subDirs.forEach(subDir => {
+    ensureDirectory(path.join(baseDir, subDir));
+  });
+  console.log("Upload directories initialized successfully");
 };
 
 const sanitizeFilename = (name: string) =>

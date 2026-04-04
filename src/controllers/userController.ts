@@ -5,6 +5,7 @@ import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { sendOTPEmail } from "../utils/emailService.js";
 import { toStoredPath } from "../utils/fileUpload.js";
+import { getFullUrl } from "../utils/mediaPath.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "historicalwalksecret";
 const OTP_EXPIRY_MINUTES = 10;
@@ -383,7 +384,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         isVerified: user.email_verified,
-        profileImage: user.profile_image || null,
+        profileImage: getFullUrl(req, user.profile_image),
         tickets: user.tickets,
         favorites: user.favorites,
         reviews: user.reviews,
@@ -465,7 +466,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         name: updatedUser.name,
         role: updatedUser.role,
         isVerified: updatedUser.email_verified,
-        profileImage: updatedUser.profile_image || null,
+        profileImage: getFullUrl(req, updatedUser.profile_image),
       },
     });
   } catch (error: any) {

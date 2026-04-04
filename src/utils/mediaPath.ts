@@ -1,6 +1,16 @@
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
+
+export const getFullUrl = (req: Request, storedPath: string | null): string | null => {
+  if (!storedPath) return null;
+  // If it's already a full URL, return it
+  if (storedPath.startsWith("http")) return storedPath;
+  
+  const protocol = req.protocol;
+  const host = req.get("host");
+  return `${protocol}://${host}/${storedPath}`;
+};
 
 const toAbsolutePath = (storedPath: string): string =>
   path.isAbsolute(storedPath)

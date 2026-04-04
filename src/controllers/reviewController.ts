@@ -48,12 +48,10 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
       }
 
       // Check if user has already reviewed this museum
-      existingReview = await prisma.review.findUnique({
+      existingReview = await prisma.review.findFirst({
         where: {
-          user_id_museum_id: {
-            user_id: userId,
-            museum_id: Number(museum_id),
-          },
+          user_id: userId,
+          museum_id: Number(museum_id),
         },
       });
     } else if (site_id) {
@@ -68,12 +66,10 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
       }
 
       // Check if user has already reviewed this site
-      existingReview = await prisma.review.findUnique({
+      existingReview = await prisma.review.findFirst({
         where: {
-          user_id_site_id: {
-            user_id: userId,
-            site_id: Number(site_id),
-          },
+          user_id: userId,
+          site_id: Number(site_id),
         },
       });
     }

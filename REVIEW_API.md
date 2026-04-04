@@ -11,16 +11,19 @@ The review system allows users to submit ratings (1-5 stars) and thoughts about 
 model Review {
   review_id   Int      @id @default(autoincrement())
   user_id     Int
-  museum_id   Int
+  museum_id   Int?     // Optional, for museum reviews
+  site_id     Int?     // Optional, for heritage site reviews
   rating      Int      // 1-5 stars
   thoughts    String   @db.Text
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  museum Museum @relation(fields: [museum_id], references: [museum_id], onDelete: Cascade)
+  user   User          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  museum Museum?       @relation(fields: [museum_id], references: [museum_id], onDelete: Cascade)
+  site   HeritageSite? @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
 
   @@unique([user_id, museum_id])  // One review per user per museum
+  @@unique([user_id, site_id])    // One review per user per site
 }
 ```
 
@@ -40,7 +43,7 @@ http://localhost:8000/api/users
 **Endpoint:** `POST /api/users/reviews`  
 **Authentication:** Required  
 **Method:** POST  
-**Description:** Submit a new review or update an existing review for a museum
+**Description:** Submit a new review or update an existing review for a museum or heritage site
 
 **Request Headers:**
 ```
@@ -58,9 +61,10 @@ Content-Type: application/json
 ```
 
 **Request Parameters:**
-- `museum_id` (required, number): The ID of the museum being reviewed
+- `museum_id` (optional, number): The ID of the museum being reviewed
+- `site_id` (optional, number): The ID of the heritage site being reviewed
 - `rating` (required, integer): Rating from 1-5 stars
-- `thoughts` (required, string): User's review text/thoughts about the museum
+- `thoughts` (required, string): User's review text/thoughts
 
 **Success Response (201 - New Review):**
 ```json
@@ -120,7 +124,7 @@ Content-Type: application/json
 
 **cURL Examples:**
 
-*Submit new review:*
+*Submit new review (Museum):*
 ```bash
 curl -X POST http://localhost:8000/api/users/reviews \
   -H "Authorization: Bearer your_jwt_token_here" \
@@ -129,6 +133,18 @@ curl -X POST http://localhost:8000/api/users/reviews \
     "museum_id": 1,
     "rating": 4,
     "thoughts": "Amazing museum! Great exhibits."
+  }'
+```
+
+*Submit new review (Heritage Site):*
+```bash
+curl -X POST http://localhost:8000/api/users/reviews \
+  -H "Authorization: Bearer your_jwt_token_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": 1,
+    "rating": 5,
+    "thoughts": "Breathtaking heritage site. Such rich history!"
   }'
 ```
 
