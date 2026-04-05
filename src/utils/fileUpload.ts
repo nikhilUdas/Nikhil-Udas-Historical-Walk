@@ -10,7 +10,7 @@ export const ensureDirectory = (dirPath: string) => {
 
 export const initializeUploadDirectories = () => {
   const baseDir = path.join(process.cwd(), "uploads");
-  const subDirs = ["stories", "users", "museums", "sites", "misc"];
+  const subDirs = ["stories", "users", "museums", "sites", "reviews", "misc"];
   
   ensureDirectory(baseDir);
   subDirs.forEach(subDir => {
@@ -30,6 +30,9 @@ const getUploadSubDirectory = (req: any, file: Express.Multer.File): string => {
   if (file.fieldname === "images" && baseUrl.includes("/museums"))
     return "museums";
   if (file.fieldname === "images") return "sites";
+  if (file.fieldname === "image" && baseUrl.includes("/reviews"))
+    return "reviews";
+  if (file.fieldname === "image") return "users";
   return "misc";
 };
 

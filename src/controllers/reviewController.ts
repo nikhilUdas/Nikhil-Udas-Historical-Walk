@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../models/index.js';
+import { toStoredPath } from '../utils/fileUpload.js';
+import { getFullUrl } from '../utils/mediaPath.js';
 
 // Submit or update a review for a museum or heritage site
 export const submitReview = async (req: Request, res: Response): Promise<void> => {
@@ -78,12 +80,18 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
 
     if (existingReview) {
       // Update existing review
+      const updateData: any = {
+        rating: Number(rating),
+        thoughts,
+      };
+
+      if (req.file) {
+        updateData.image_path = toStoredPath(req.file.path);
+      }
+
       review = await prisma.review.update({
         where: { review_id: existingReview.review_id },
-        data: {
-          rating: Number(rating),
-          thoughts,
-        },
+        data: updateData,
         include: {
           user: {
             select: {
@@ -109,10 +117,15 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
 
       res.status(200).json({
         message: 'Review updated successfully',
-        review,
+        review: {
+          ...review,
+          image_url: getFullUrl(req, review.image_path)
+        },
       });
     } else {
       // Create new review
+      const imagePath = req.file ? toStoredPath(req.file.path) : undefined;
+
       review = await prisma.review.create({
         data: {
           user_id: userId,
@@ -120,6 +133,7 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
           site_id: site_id ? Number(site_id) : undefined,
           rating: Number(rating),
           thoughts,
+          image_path: imagePath,
         },
         include: {
           user: {
@@ -146,7 +160,10 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
 
       res.status(201).json({
         message: 'Review submitted successfully',
-        review,
+        review: {
+          ...review,
+          image_url: getFullUrl(req, review.image_path)
+        },
       });
     }
   } catch (error: any) {
@@ -221,7 +238,10 @@ export const getReviewSummary = async (req: Request, res: Response): Promise<voi
       averageRating,
       totalReviews,
       ratingDistribution,
-      reviews,
+      reviews: reviews.map(r => ({
+          ...r,
+          image_url: getFullUrl(req, r.image_path)
+      })),
     });
   } catch (error: any) {
     console.error('Error fetching review summary:', error);
@@ -280,7 +300,10 @@ export const getAllReviews = async (req: Request, res: Response): Promise<void> 
       totalReviews,
       averageRating,
       ratingDistribution,
-      reviews,
+      reviews: reviews.map(r => ({
+          ...r,
+          image_url: getFullUrl(req, r.image_path)
+      })),
     });
   } catch (error: any) {
     console.error('Error fetching all reviews:', error);
@@ -321,7 +344,10 @@ export const getUserReviews = async (req: Request, res: Response): Promise<void>
     });
 
     res.status(200).json({
-      reviews,
+      reviews: reviews.map(r => ({
+          ...r,
+          image_url: getFullUrl(req, r.image_path)
+      })),
       count: reviews.length,
     });
   } catch (error: any) {
