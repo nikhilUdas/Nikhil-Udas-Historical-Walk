@@ -4,8 +4,11 @@ const SMTP_USER = process.env.SMTP_USER?.trim();
 const SMTP_PASS = process.env.SMTP_PASS?.trim();
 const SMTP_HOST = process.env.SMTP_HOST?.trim() || 'smtp.gmail.com';
 const SMTP_PORT = Number(process.env.SMTP_PORT?.trim()) || 465;
-const SMTP_SECURE = process.env.SMTP_SECURE?.trim() === 'true' || process.env.SMTP_SECURE?.trim() === '1';
 
+// Secure should be true for port 465, false for 587
+const SMTP_SECURE = process.env.SMTP_SECURE 
+  ? (process.env.SMTP_SECURE.trim() === 'true' || process.env.SMTP_SECURE.trim() === '1')
+  : (SMTP_PORT === 465); // Default to true if port is 465
 
 
 // Create transporter only if credentials exist
@@ -13,48 +16,44 @@ let transporter: nodemailer.Transporter | null = null;
 
 if (SMTP_USER && SMTP_PASS) {
   try {
+    console.log(`[Email] Initializing SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure: ${SMTP_SECURE})`);
     transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
-      secure: SMTP_SECURE, // true for 465, false for 587
+      secure: SMTP_SECURE,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
       },
       // Add connection timeout and debug options
-      connectionTimeout: 30000, // 30 seconds
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      debug: false, // Set to false to reduce noise, but keep logger
-      logger: false, // We'll log manually
-      pool: true, // Use connection pooling
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+      debug: false, 
+      logger: false, 
+      pool: true, 
       maxConnections: 1,
       maxMessages: 3,
     });
     
-    // Verify connection asynchronously (don't block startup)
+    // Verify connection asynchronously
     transporter.verify((error: any, success) => {
       if (error) {
-        console.error(' SMTP Connection Verification Failed:');
-        console.error('Error code:', error?.code);
-        console.error('Error message:', error?.message);
-        console.error('Command:', error?.command);
+        console.error('❌ SMTP Connection Verification Failed:');
+        console.error('   Error code:', error?.code);
+        console.error('   Error message:', error?.message);
         if (error?.code === 'EAUTH') {
-          console.error('    AUTHENTICATION ERROR:');
-          console.error('   - Make sure you are using a Gmail App Password, not your regular Gmail password');
-          console.error('   - To create an App Password:');
-          console.error('     1. Go to your Google Account settings');
-          console.error('     2. Security > 2-Step Verification > App passwords');
-          console.error('     3. Generate a new app password for "Mail"');
-          console.error('     4. Use that 16-character password in SMTP_PASS');
+          console.error('   AUTHENTICATION ERROR: Check your SMTP_USER and SMTP_PASS (App Password)');
         }
+      } else {
+        console.log('✅ SMTP Connection Verified Successfully');
       }
     });
   } catch (error) {
-    console.error(' Failed to create email transporter:', error);
+    console.error('❌ Failed to create email transporter:', error);
   }
 } else {
-  console.warn('  Email transporter not created - missing credentials');
+  console.warn('⚠️ Email transporter not created - missing SMTP_USER or SMTP_PASS');
 }
 
 // Send OTP email
