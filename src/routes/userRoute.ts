@@ -38,7 +38,8 @@ router.post('/reset-password', resetPassword);
 // Review routes
 router.post('/reviews', authenticate, upload.single('image'), submitReview);  // Submit/Update review (requires auth)
 router.get('/reviews', getAllReviews);  // Get all reviews across all museums (public)
-router.get('/reviews/museum/:museum_id', getReviewSummary);  // Get museum reviews (public)
+router.get('/reviews/summary', getReviewSummary);  // Get review summary for museum or site (public)
+router.get('/reviews/museum/:museum_id', getReviewSummary);  // Get museum reviews (public) - legacy route
 router.get('/reviews/my-reviews', authenticate, getUserReviews);  // Get user's reviews (requires auth)
 router.delete('/reviews/:review_id', authenticate, deleteReview);  // Delete review (requires auth)
   
