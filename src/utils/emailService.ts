@@ -24,32 +24,25 @@ if (SMTP_USER && SMTP_PASS) {
         pass: SMTP_PASS,
       },
       // Add connection timeout and debug options
-      connectionTimeout: 30000, // 30 seconds
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      debug: false, // Set to false to reduce noise, but keep logger
-      logger: false, // We'll log manually
-      pool: true, // Use connection pooling
-      maxConnections: 1,
-      maxMessages: 3,
-    });
+      connectionTimeout: 60000, // Increase to 60 seconds
+      greetingTimeout: 60000,
+      socketTimeout: 60000,
+      debug: true, // Enable debug for now to help troubleshoot
+      logger: true, // Enable logger for now to help troubleshoot
+      pool: false, // Disable pooling to see if it helps with connection stability on Render
+    } as any);
     
     // Verify connection asynchronously (don't block startup)
     transporter.verify((error: any, success) => {
       if (error) {
-        console.error(' SMTP Connection Verification Failed:');
-        console.error('Error code:', error?.code);
-        console.error('Error message:', error?.message);
-        console.error('Command:', error?.command);
+        console.error('❌ SMTP Connection Verification Failed:');
+        console.error('   Error code:', error?.code);
+        console.error('   Error message:', error?.message);
         if (error?.code === 'EAUTH') {
-          console.error('    AUTHENTICATION ERROR:');
-          console.error('   - Make sure you are using a Gmail App Password, not your regular Gmail password');
-          console.error('   - To create an App Password:');
-          console.error('     1. Go to your Google Account settings');
-          console.error('     2. Security > 2-Step Verification > App passwords');
-          console.error('     3. Generate a new app password for "Mail"');
-          console.error('     4. Use that 16-character password in SMTP_PASS');
+          console.error('   AUTHENTICATION ERROR: Check your SMTP_USER and SMTP_PASS (App Password)');
         }
+      } else {
+        console.log('✅ SMTP Connection verified successfully');
       }
     });
   } catch (error) {
