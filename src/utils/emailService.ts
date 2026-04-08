@@ -1,10 +1,12 @@
 import nodemailer from 'nodemailer';
 
-const SMTP_USER = process.env.SMTP_USER?.trim();
-const SMTP_PASS = process.env.SMTP_PASS?.trim();
-const SMTP_HOST = process.env.SMTP_HOST?.trim() || 'smtp.gmail.com';
-const SMTP_PORT = Number(process.env.SMTP_PORT?.trim()) || 465;
-const SMTP_SECURE = process.env.SMTP_SECURE?.trim() === 'true' || process.env.SMTP_SECURE?.trim() === '1';
+const SMTP_USER = (process.env.smtp_user || process.env.SMTP_USER)?.trim();
+const SMTP_PASS = (process.env.smtp_pass || process.env.SMTP_PASS)?.trim();
+const SMTP_HOST = (process.env.smtp_host || process.env.SMTP_HOST)?.trim() || 'smtp.gmail.com';
+const SMTP_PORT = Number((process.env.smtp_port || process.env.SMTP_PORT)?.toString().trim()) || 465;
+
+const smtpSecureRaw = (process.env.smtp_secure || process.env.SMTP_SECURE)?.toString().trim().toLowerCase();
+const SMTP_SECURE = smtpSecureRaw === 'true' || smtpSecureRaw === '1' || (SMTP_PORT === 465 && smtpSecureRaw !== 'false');
 
 
 
