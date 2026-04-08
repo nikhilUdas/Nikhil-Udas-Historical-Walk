@@ -1,7 +1,10 @@
 import nodemailer from 'nodemailer';
 
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_USER = process.env.SMTP_USER?.trim();
+const SMTP_PASS = process.env.SMTP_PASS?.trim();
+const SMTP_HOST = process.env.SMTP_HOST?.trim() || 'smtp.gmail.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT?.trim()) || 465;
+const SMTP_SECURE = process.env.SMTP_SECURE?.trim() === 'true' || process.env.SMTP_SECURE?.trim() === '1';
 
 
 
@@ -11,7 +14,9 @@ let transporter: nodemailer.Transporter | null = null;
 if (SMTP_USER && SMTP_PASS) {
   try {
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE, // true for 465, false for 587
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
