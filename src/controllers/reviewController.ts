@@ -7,7 +7,12 @@ import prisma from '../models/index.js';
 export const submitReview = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { museum_id, site_id, rating, thoughts } = req.body;
+    let { museum_id, site_id, rating, thoughts } = req.body;
+
+    // Explicitly cast to Number if they are provided, as they might be strings from FormData
+    if (museum_id) museum_id = Number(museum_id);
+    if (site_id) site_id = Number(site_id);
+    if (rating !== undefined) rating = Number(rating);
 
     // Validation
     if (!userId) {
