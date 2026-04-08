@@ -66,6 +66,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+// Debug static file 404s
+app.use("/uploads", (req, res) => {
+  console.error(`[Static] 404 on uploads: ${req.path} (Full path: ${path.join(process.cwd(), "uploads", req.path)})`);
+  res.status(404).json({ error: "File not found in uploads directory" });
+});
+
 // Routes
 app.get("/", async (req: Request, res: Response) => {
   res.send("This is the backend server of Historical Walk!");

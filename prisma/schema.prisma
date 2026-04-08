@@ -209,7 +209,6 @@ model Review {
   site_id     Int?
   rating      Int      // 1-5 stars
   thoughts    String   @db.Text
-  image_path  String?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 

@@ -11,10 +11,13 @@ export const ensureDirectory = (dirPath: string) => {
 export const initializeUploadDirectories = () => {
   const baseDir = path.join(process.cwd(), "uploads");
   const subDirs = ["stories", "users", "museums", "sites", "reviews", "misc"];
-  
+
+  console.log(`Initializing upload directories at: ${baseDir}`);
   ensureDirectory(baseDir);
   subDirs.forEach(subDir => {
-    ensureDirectory(path.join(baseDir, subDir));
+    const subDirPath = path.join(baseDir, subDir);
+    ensureDirectory(subDirPath);
+    console.log(`- Verified directory: ${subDir}`);
   });
   console.log("Upload directories initialized successfully");
 };
@@ -26,12 +29,10 @@ const getUploadSubDirectory = (req: any, file: Express.Multer.File): string => {
   const baseUrl = String(req.baseUrl || "");
 
   if (file.fieldname === "media") return "stories";
-  if (file.fieldname === "image") return "users";
-  if (file.fieldname === "images" && baseUrl.includes("/museums"))
-    return "museums";
+  if (baseUrl.includes("/museums")) return "museums";
+  if (baseUrl.includes("/sites")) return "sites";
+  if (baseUrl.includes("/reviews") || baseUrl.includes("/users/reviews")) return "reviews";
   if (file.fieldname === "images") return "sites";
-  if (file.fieldname === "image" && baseUrl.includes("/reviews"))
-    return "reviews";
   if (file.fieldname === "image") return "users";
   return "misc";
 };
