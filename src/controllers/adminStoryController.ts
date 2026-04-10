@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
+import { toStoredPath, fileToBase64 } from "../utils/fileUpload.js";
 
 // US-8: Add a new story
 export const addStory = async (req: Request, res: Response) => {
@@ -41,7 +41,7 @@ export const addStory = async (req: Request, res: Response) => {
         title,
         content,
         god_or_goddess_name,
-        media_path: toStoredPath(file.path),
+        media_path: file ? fileToBase64(file) : "",
       },
       include: {
         site: true,
@@ -117,7 +117,7 @@ export const updateStory = async (req: Request, res: Response) => {
     if (content !== undefined) updateData.content = content;
     if (god_or_goddess_name !== undefined)
       updateData.god_or_goddess_name = god_or_goddess_name;
-    if (file) updateData.media_path = toStoredPath(file.path);
+    if (file) updateData.media_path = fileToBase64(file);
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {

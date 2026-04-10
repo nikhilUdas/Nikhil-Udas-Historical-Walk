@@ -37,24 +37,8 @@ const getUploadSubDirectory = (req: any, file: Express.Multer.File): string => {
   return "misc";
 };
 
-// Configure disk storage so only file paths are persisted in the database.
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const subDir = getUploadSubDirectory(req, file);
-    const destination = path.join(process.cwd(), "uploads", subDir);
-    ensureDirectory(destination);
-    cb(null, destination);
-  },
-  filename: (_req, file, cb) => {
-    const extension = path.extname(file.originalname) || ".jpg";
-    const baseName = path.basename(
-      file.originalname,
-      path.extname(file.originalname),
-    );
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${sanitizeFilename(baseName)}-${uniqueSuffix}${extension}`);
-  },
-});
+// Configure memory storage to store image data directly in DB as Base64.
+const storage = multer.memoryStorage();
 
 // File filter to allow only images
 const fileFilter = (
@@ -77,12 +61,20 @@ export const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    fileSize: 10 * 1024 * 1024, // Increased to 10MB to accommodate Base64 overhead
   },
 });
 
-// Store paths in DB as workspace-relative, forward-slash URLs.
-export const toStoredPath = (absoluteFilePath: string): string => {
-  const relative = path.relative(process.cwd(), absoluteFilePath);
-  return relative.split(path.sep).join("/");
+/**
+ * Converts a file buffer to a Base64 Data URI string.
+ */
+export const fileToBase64 = (file: Express.Multer.File): string => {
+  const base64Data = file.buffer.toString("base64");
+  return `data:${file.mimetype};base64,${base64Data}`;
 };
+
+// Deprecated: Use fileToBase64 instead. Keeping for compatibility during migration.
+export const toStoredPath = (absoluteFilePath: string): string => {
+  return absoluteFilePath;
+};
+

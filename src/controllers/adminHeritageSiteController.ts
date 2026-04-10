@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
+import { toStoredPath, fileToBase64 } from "../utils/fileUpload.js";
 import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 
 // Add a new heritage site
@@ -41,18 +41,18 @@ export const addHeritageSite = async (req: Request, res: Response) => {
         .json({ message: "Heritage site with this name already exists" });
     }
 
-    const mainImagePath = file?.path ? toStoredPath(file.path) : null;
-
-    // Create the heritage site
-    const site = await prisma.heritageSite.create({
-      data: {
-        name,
-        description,
-        photo_url: mainImagePath || photo_url,
-        gps_coordinates,
-        image_path: mainImagePath || null,
-      },
-    });
+    const mainImageData = file ? fileToBase64(file) : null;
+ 
+     // Create the heritage site
+     const site = await prisma.heritageSite.create({
+       data: {
+         name,
+         description,
+         photo_url: mainImageData || photo_url,
+         gps_coordinates,
+         image_path: mainImageData || null,
+       },
+     });
 
     // Handle multiple images if provided
     if (files && Array.isArray(files)) {
@@ -65,7 +65,7 @@ export const addHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: site.site_id,
-              image_path: toStoredPath(file.path),
+              image_path: fileToBase64(file),
             },
           });
         } catch (err) {
@@ -140,9 +140,9 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      const storedPath = toStoredPath(file.path);
-      updateData.photo_url = storedPath;
-      updateData.image_path = storedPath;
+      const imageData = fileToBase64(file);
+      updateData.photo_url = imageData;
+      updateData.image_path = imageData;
     }
 
     // Check if there's anything to update
@@ -177,7 +177,7 @@ export const updateHeritageSite = async (req: Request, res: Response) => {
           return prisma.heritageSiteImage.create({
             data: {
               site_id: updatedSite.site_id,
-              image_path: toStoredPath(f.path),
+              image_path: fileToBase64(f),
             },
           });
         } catch (err) {

@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
+import { toStoredPath, fileToBase64 } from "../utils/fileUpload.js";
 import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 import { createNotification } from "./notificationController.js";
 
@@ -44,18 +44,18 @@ export const addMuseum = async (req: Request, res: Response) => {
         .json({ message: "Museum with this name already exists" });
     }
 
-    const imagePath = file?.path ? toStoredPath(file.path) : undefined;
-
-    // Create the museum
-    const museum = await prisma.museum.create({
-      data: {
-        name,
-        description,
-        opening_hours,
-        gps_coordinates,
-        image_path: imagePath as any,
-      },
-    });
+    const imageData = file ? fileToBase64(file) : undefined;
+ 
+     // Create the museum
+     const museum = await prisma.museum.create({
+       data: {
+         name,
+         description,
+         opening_hours,
+         gps_coordinates,
+         image_path: imageData as any,
+       },
+     });
 
     // Handle multiple images if provided
     if (files && Array.isArray(files)) {
@@ -66,7 +66,7 @@ export const addMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: museum.museum_id,
-              image_path: toStoredPath(file.path),
+              image_path: fileToBase64(file),
             },
           });
         } catch (err) {
@@ -141,7 +141,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_path = toStoredPath(file.path);
+      updateData.image_path = fileToBase64(file);
     }
 
     // Check if there's anything to update
@@ -179,7 +179,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: updatedMuseum.museum_id,
-              image_path: toStoredPath(f.path),
+              image_path: fileToBase64(f),
             },
           });
         } catch (err) {

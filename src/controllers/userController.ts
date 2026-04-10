@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { sendOTPEmail } from "../utils/emailService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
+import { toStoredPath, fileToBase64 } from "../utils/fileUpload.js";
 import { getFullUrl } from "../utils/mediaPath.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "historicalwalksecret";
@@ -428,7 +428,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Handle profile image upload
     if (file) {
-      updateData.profile_image = toStoredPath(file.path);
+      updateData.profile_image = fileToBase64(file);
     }
 
     if (Object.keys(updateData).length === 0) {
