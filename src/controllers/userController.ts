@@ -340,7 +340,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const user = await prisma.user.findUnique({
+    const userResult = await prisma.user.findUnique({
       where: { user_id: userId },
       include: {
         tickets: {
@@ -356,20 +356,38 @@ export const getUserProfile = async (req: Request, res: Response) => {
             },
           },
         },
-        favorites: user.favorites.map(fav => ({
-          ...fav,
-          site: {
-            ...fav.site,
-            image_url: getFullUrl(req, fav.site.photo_url || (fav.site as any).image_path, `/api/media/heritage-sites/${fav.site.site_id}/image`)
-          }
-        })),
+        favorites: {
+          include: {
+            site: {
+              select: {
+                site_id: true,
+                name: true,
+                description: true,
+                photo_url: true,
+                gps_coordinates: true,
+              },
+            },
+          },
+        },
         reviews: true,
       },
     });
 
-    if (!user) {
+    if (!userResult) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    // Map the favorites with binary-to-URL mapping after fetching
+    const user = {
+      ...userResult,
+      favorites: userResult.favorites.map(fav => ({
+        ...fav,
+        site: {
+          ...fav.site,
+          image_url: getFullUrl(req, fav.site.photo_url || (fav.site as any).image_path, `/api/media/heritage-sites/${fav.site.site_id}/image`)
+        }
+      }))
+    };
 
     return res.status(200).json({
       user: {
