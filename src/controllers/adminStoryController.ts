@@ -3,6 +3,8 @@ import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
 import { toStoredPath, fileToBase64 } from "../utils/fileUpload.js";
+import { getFullUrl } from "../utils/mediaPath.js";
+
 
 // US-8: Add a new story
 export const addStory = async (req: Request, res: Response) => {
@@ -41,7 +43,7 @@ export const addStory = async (req: Request, res: Response) => {
         title,
         content,
         god_or_goddess_name,
-        media_path: file ? fileToBase64(file) : "",
+        media_path: file ? await fileToBase64(file) : "",
       },
       include: {
         site: true,
@@ -61,7 +63,11 @@ export const addStory = async (req: Request, res: Response) => {
       message: "Story added successfully",
       story: {
         ...story,
-        media_url: story.media_path,
+        media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
+        site: {
+          ...story.site,
+          image_url: getFullUrl(req, story.site.photo_url || (story.site as any).image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+        }
       },
     });
   } catch (error: any) {
@@ -117,7 +123,7 @@ export const updateStory = async (req: Request, res: Response) => {
     if (content !== undefined) updateData.content = content;
     if (god_or_goddess_name !== undefined)
       updateData.god_or_goddess_name = god_or_goddess_name;
-    if (file) updateData.media_path = fileToBase64(file);
+    if (file) updateData.media_path = await fileToBase64(file);
 
     // Check if there's anything to update
     if (Object.keys(updateData).length === 0) {
@@ -137,7 +143,11 @@ export const updateStory = async (req: Request, res: Response) => {
       message: "Story updated successfully",
       story: {
         ...updatedStory,
-        media_url: updatedStory.media_path || null,
+        media_url: getFullUrl(req, updatedStory.media_path, `/api/media/stories/${updatedStory.story_id}/image`),
+        site: {
+          ...updatedStory.site,
+          image_url: getFullUrl(req, updatedStory.site.photo_url || (updatedStory.site as any).image_path, `/api/media/heritage-sites/${updatedStory.site.site_id}/image`),
+        }
       },
     });
   } catch (error: any) {
@@ -209,7 +219,11 @@ export const getAllStories = async (req: Request, res: Response) => {
       count: stories.length,
       stories: stories.map((s) => ({
         ...s,
-        media_url: s.media_path || null,
+        media_url: getFullUrl(req, s.media_path, `/api/media/stories/${s.story_id}/image`),
+        site: {
+          ...s.site,
+          image_url: getFullUrl(req, s.site.photo_url || (s.site as any).image_path, `/api/media/heritage-sites/${s.site.site_id}/image`),
+        }
       })),
     });
   } catch (error: any) {
@@ -245,7 +259,11 @@ export const getStoryById = async (req: Request, res: Response) => {
       message: "Story retrieved successfully",
       story: {
         ...story,
-        media_url: story.media_path || null,
+        media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
+        site: {
+          ...story.site,
+          image_url: getFullUrl(req, story.site.photo_url || (story.site as any).image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+        }
       },
     });
   } catch (error: any) {

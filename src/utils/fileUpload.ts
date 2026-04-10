@@ -65,13 +65,35 @@ export const upload = multer({
   },
 });
 
+import sharp from "sharp";
+
 /**
- * Converts a file buffer to a Base64 Data URI string.
+ * Converts a file buffer to a compressed Base64 Data URI string.
+ * Resizes to max 1024px width/height and reduces quality to 80%.
  */
-export const fileToBase64 = (file: Express.Multer.File): string => {
-  const base64Data = file.buffer.toString("base64");
-  return `data:${file.mimetype};base64,${base64Data}`;
+export const fileToBase64 = async (file: Express.Multer.File): Promise<string> => {
+  try {
+    // Compress image using sharp
+    const compressedBuffer = await sharp(file.buffer)
+      .resize({
+        width: 1024,
+        height: 1024,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 80 }) // Convert TO JPEG for better compression as Base64
+      .toBuffer();
+
+    const base64Data = compressedBuffer.toString("base64");
+    return `data:image/jpeg;base64,${base64Data}`;
+  } catch (error) {
+    console.error("Error compressing image:", error);
+    // Fallback to original if compression fails
+    const base64Data = file.buffer.toString("base64");
+    return `data:${file.mimetype};base64,${base64Data}`;
+  }
 };
+
 
 // Deprecated: Use fileToBase64 instead. Keeping for compatibility during migration.
 export const toStoredPath = (absoluteFilePath: string): string => {

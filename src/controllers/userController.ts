@@ -356,19 +356,13 @@ export const getUserProfile = async (req: Request, res: Response) => {
             },
           },
         },
-        favorites: {
-          include: {
-            site: {
-              select: {
-                site_id: true,
-                name: true,
-                description: true,
-                photo_url: true,
-                gps_coordinates: true,
-              },
-            },
-          },
-        },
+        favorites: user.favorites.map(fav => ({
+          ...fav,
+          site: {
+            ...fav.site,
+            image_url: getFullUrl(req, fav.site.photo_url || (fav.site as any).image_path, `/api/media/heritage-sites/${fav.site.site_id}/image`)
+          }
+        })),
         reviews: true,
       },
     });
@@ -384,7 +378,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         isVerified: user.email_verified,
-        profileImage: getFullUrl(req, user.profile_image),
+        profileImage: getFullUrl(req, user.profile_image, `/api/media/users/${user.user_id}/image`),
         tickets: user.tickets,
         favorites: user.favorites,
         reviews: user.reviews,
@@ -428,7 +422,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Handle profile image upload
     if (file) {
-      updateData.profile_image = fileToBase64(file);
+      updateData.profile_image = await fileToBase64(file);
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -466,7 +460,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         name: updatedUser.name,
         role: updatedUser.role,
         isVerified: updatedUser.email_verified,
-        profileImage: getFullUrl(req, updatedUser.profile_image),
+        profileImage: getFullUrl(req, updatedUser.profile_image, `/api/media/users/${updatedUser.user_id}/image`),
       },
     });
   } catch (error: any) {

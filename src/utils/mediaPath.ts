@@ -2,15 +2,24 @@ import type { Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 
-export const getFullUrl = (req: Request, storedPath: string | null): string | null => {
+export const getFullUrl = (req: Request, storedPath: string | null, dynamicUrl?: string): string | null => {
   if (!storedPath) return null;
-  // If it's already a full URL or a Base64 data URI, return it
+  
+  // If we have a dynamic serving URL provided (for Base64 data in DB), use it
+  if (storedPath.startsWith("data:") && dynamicUrl) {
+    const protocol = req.protocol;
+    const host = req.get("host");
+    return `${protocol}://${host}${dynamicUrl}`;
+  }
+
+  // If it's already a full URL or a Base64 data URI (without a dynamic fallback), return it
   if (storedPath.startsWith("http") || storedPath.startsWith("data:")) return storedPath;
   
   const protocol = req.protocol;
   const host = req.get("host");
   return `${protocol}://${host}/${storedPath}`;
 };
+
 
 const toAbsolutePath = (storedPath: string): string =>
   path.isAbsolute(storedPath)

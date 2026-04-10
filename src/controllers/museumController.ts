@@ -44,7 +44,7 @@ export const addMuseum = async (req: Request, res: Response) => {
         .json({ message: "Museum with this name already exists" });
     }
 
-    const imageData = file ? fileToBase64(file) : undefined;
+    const imageData = file ? await fileToBase64(file) : undefined;
  
      // Create the museum
      const museum = await prisma.museum.create({
@@ -66,7 +66,7 @@ export const addMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: museum.museum_id,
-              image_path: fileToBase64(file),
+              image_path: await fileToBase64(file),
             },
           });
         } catch (err) {
@@ -89,7 +89,7 @@ export const addMuseum = async (req: Request, res: Response) => {
       message: "Museum added successfully",
       museum: {
         ...museum,
-        image_url: getFullUrl(req, museum.image_path),
+        image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
         additional_images: [],
       },
     });
@@ -141,7 +141,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
 
     // Handle image update if file is provided
     if (file) {
-      updateData.image_path = fileToBase64(file);
+      updateData.image_path = await fileToBase64(file);
     }
 
     // Check if there's anything to update
@@ -179,7 +179,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
           return prisma.museumImage.create({
             data: {
               museum_id: updatedMuseum.museum_id,
-              image_path: fileToBase64(f),
+              image_path: await fileToBase64(f),
             },
           });
         } catch (err) {
@@ -196,7 +196,7 @@ export const updateMuseum = async (req: Request, res: Response) => {
       message: "Museum updated successfully",
       museum: {
         ...updatedMuseum,
-        image_url: getFullUrl(req, updatedMuseum.image_path),
+        image_url: getFullUrl(req, updatedMuseum.image_path, `/api/media/museums/${updatedMuseum.museum_id}/image`),
       },
     });
   } catch (error: any) {
@@ -273,8 +273,8 @@ export const getAllMuseums = async (req: Request, res: Response) => {
     // Transform museums to include image URLs
     const museumsWithImages = museums.map((museum) => ({
       ...museum,
-      image_url: getFullUrl(req, museum.image_path),
-      additional_images: museum.images.map((img) => getFullUrl(req, img.image_path)),
+      image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
+      additional_images: museum.images.map((img) => getFullUrl(req, img.image_path, `/api/media/museums/additional/${img.image_id}`)),
     }));
 
     return res.status(200).json({
@@ -327,8 +327,8 @@ export const getMuseumById = async (req: Request, res: Response) => {
       message: "Museum retrieved successfully",
       museum: {
         ...museum,
-        image_url: getFullUrl(req, museum.image_path),
-        additional_images: museum.images.map((img) => getFullUrl(req, img.image_path)),
+        image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
+        additional_images: museum.images.map((img) => getFullUrl(req, img.image_path, `/api/media/museums/additional/${img.image_id}`)),
       },
     });
   } catch (error: any) {
