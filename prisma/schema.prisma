@@ -38,6 +38,7 @@ model User {
   reviews          Review[]
   storyPayments    StoryPayment[]
   sitePayments     SitePayment[]
+  favoriteMuseums  FavoriteMuseum[]
 }
 
 model UserOTP {
@@ -85,6 +86,7 @@ model Museum {
   tickets Ticket[]
   reviews Review[]
   images  MuseumImage[]
+  favorites FavoriteMuseum[]
 }
 
 model MuseumImage {
@@ -187,6 +189,18 @@ model FavoriteSite {
   site HeritageSite  @relation(fields: [site_id], references: [site_id], onDelete: Cascade)
 
   @@unique([user_id, site_id])
+}
+
+model FavoriteMuseum {
+  fav_id      Int      @id @default(autoincrement())
+  user_id     Int
+  museum_id   Int
+  added_date  DateTime @default(now())
+
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  museum Museum @relation(fields: [museum_id], references: [museum_id], onDelete: Cascade)
+
+  @@unique([user_id, museum_id])
 }
 
 model Notification {
