@@ -396,7 +396,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         isVerified: user.email_verified,
-        profileImage: getFullUrl(req, user.profile_image, `/api/media/users/${user.user_id}/image`),
+        profileImage: getFullUrl(req, user.profile_image, `/api/media/users/${user.user_id}/image?t=${Date.now()}`),
         tickets: user.tickets,
         favorites: user.favorites,
         reviews: user.reviews,
@@ -435,12 +435,15 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     }
 
     const updateData: any = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
+    if (name && typeof name === 'string') updateData.name = name.trim();
+    if (email && typeof email === 'string') updateData.email = email.trim();
 
     // Handle profile image upload
     if (file) {
-      updateData.profile_image = await fileToBase64(file);
+      console.log(`[Profile Update] Processing image: ${file.originalname}`);
+      const base64Data = await fileToBase64(file);
+      updateData.profile_image = base64Data;
+      console.log(`[Profile Update] Image converted to Base64 (length: ${base64Data.length})`);
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -459,11 +462,10 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     }
 
     console.log(
-      `[Profile Update] Updating user ${userId} with:`,
-      Object.keys(updateData),
+      `[Profile Update] Executing Prisma update for user ${userId}...`
     );
     const updatedUser = await prisma.user.update({
-      where: { user_id: userId },
+      where: { user_id: Number(userId) }, // Ensure it's a number
       data: updateData,
     });
     console.log(
@@ -478,7 +480,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         name: updatedUser.name,
         role: updatedUser.role,
         isVerified: updatedUser.email_verified,
-        profileImage: getFullUrl(req, updatedUser.profile_image, `/api/media/users/${updatedUser.user_id}/image`),
+        profileImage: getFullUrl(req, updatedUser.profile_image, `/api/media/users/${updatedUser.user_id}/image?t=${Date.now()}`),
       },
     });
   } catch (error: any) {
