@@ -1,8 +1,8 @@
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
-import { sendStoredFile } from "../utils/mediaPath.js";
+import { fileToBase64 } from "../utils/fileUpload.js";
+import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 // Add a new heritage site
 export const addHeritageSite = async (req, res) => {
     const { name, description, photo_url, gps_coordinates } = req.body;
@@ -32,15 +32,15 @@ export const addHeritageSite = async (req, res) => {
                 .status(400)
                 .json({ message: "Heritage site with this name already exists" });
         }
-        const mainImagePath = file?.path ? toStoredPath(file.path) : null;
+        const mainImageData = file ? await fileToBase64(file) : null;
         // Create the heritage site
         const site = await prisma.heritageSite.create({
             data: {
                 name,
                 description,
-                photo_url: mainImagePath || photo_url,
+                photo_url: mainImageData || photo_url,
                 gps_coordinates,
-                image_path: mainImagePath || null,
+                image_path: mainImageData || null,
             },
         });
         // Handle multiple images if provided
@@ -54,7 +54,7 @@ export const addHeritageSite = async (req, res) => {
                     return prisma.heritageSiteImage.create({
                         data: {
                             site_id: site.site_id,
-                            image_path: toStoredPath(file.path),
+                            image_path: await fileToBase64(file),
                         },
                     });
                 }
@@ -76,7 +76,7 @@ export const addHeritageSite = async (req, res) => {
             message: "Heritage site added successfully",
             site: {
                 ...site,
-                image_url: site.photo_url || site.image_path || null,
+                image_url: getFullUrl(req, site.photo_url || site.image_path, `/api/media/heritage-sites/${site.site_id}/image`),
                 additional_images: [],
             },
         });
@@ -124,9 +124,9 @@ export const updateHeritageSite = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            const storedPath = toStoredPath(file.path);
-            updateData.photo_url = storedPath;
-            updateData.image_path = storedPath;
+            const imageData = await fileToBase64(file);
+            updateData.photo_url = imageData;
+            updateData.image_path = imageData;
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
@@ -157,7 +157,7 @@ export const updateHeritageSite = async (req, res) => {
                     return prisma.heritageSiteImage.create({
                         data: {
                             site_id: updatedSite.site_id,
-                            image_path: toStoredPath(f.path),
+                            image_path: await fileToBase64(f),
                         },
                     });
                 }
@@ -171,7 +171,7 @@ export const updateHeritageSite = async (req, res) => {
             message: "Heritage site updated successfully",
             site: {
                 ...updatedSite,
-                image_url: updatedSite.photo_url || updatedSite.image_path || null,
+                image_url: getFullUrl(req, updatedSite.photo_url || updatedSite.image_path, `/api/media/heritage-sites/${updatedSite.site_id}/image`),
             },
         });
     }
@@ -264,8 +264,8 @@ export const getAllHeritageSites = async (req, res) => {
                 full_description: isUnlocked ? site.description : null,
                 is_unlocked: isUnlocked,
                 has_full_content: hasFullContent,
-                image_url: site.photo_url || site.image_path || null,
-                additional_images: site.images.map((img) => img.image_path),
+                image_url: getFullUrl(req, site.photo_url || site.image_path, `/api/media/heritage-sites/${site.site_id}/image`),
+                additional_images: site.images.map((img) => getFullUrl(req, img.image_path, `/api/media/heritage-sites/image/${img.image_id}`)),
             };
         });
         return res.status(200).json({
@@ -344,8 +344,8 @@ export const getHeritageSiteById = async (req, res) => {
                 full_description: isUnlocked ? site.description : null,
                 is_unlocked: isUnlocked,
                 has_full_content: hasFullContent,
-                image_url: site.photo_url || site.image_path || null,
-                additional_images: site.images.map((img) => img.image_path),
+                image_url: getFullUrl(req, site.photo_url || site.image_path, `/api/media/heritage-sites/${site.site_id}/image`),
+                additional_images: site.images.map((img) => getFullUrl(req, img.image_path, `/api/media/heritage-sites/image/${img.image_id}`)),
             },
         });
     }

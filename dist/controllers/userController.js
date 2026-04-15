@@ -3,7 +3,8 @@ import jwt from "jsonwebtoken";
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { sendOTPEmail } from "../utils/emailService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
+import { fileToBase64 } from "../utils/fileUpload.js";
+import { getFullUrl } from "../utils/mediaPath.js";
 const JWT_SECRET = process.env.JWT_SECRET || "historicalwalksecret";
 const OTP_EXPIRY_MINUTES = 10;
 // Helper function to generate OTP
@@ -26,9 +27,7 @@ const generateToken = (userId, role, type) => {
 export const registerUser = async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
-        return res
-            .status(400)
-            .json({
+        return res.status(400).json({
             message: "Missing required fields: name, email, and password are required",
         });
     }
@@ -279,7 +278,7 @@ export const getUserProfile = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: "Unauthorized" });
         }
-        const user = await prisma.user.findUnique({
+        const userResult = await prisma.user.findUnique({
             where: { user_id: userId },
             include: {
                 tickets: {
@@ -311,9 +310,20 @@ export const getUserProfile = async (req, res) => {
                 reviews: true,
             },
         });
-        if (!user) {
+        if (!userResult) {
             return res.status(404).json({ message: "User not found" });
         }
+        // Map the favorites with binary-to-URL mapping after fetching
+        const user = {
+            ...userResult,
+            favorites: userResult.favorites.map((fav) => ({
+                ...fav,
+                site: {
+                    ...fav.site,
+                    image_url: getFullUrl(req, fav.site.photo_url || fav.site.image_path, `/api/media/heritage-sites/${fav.site.site_id}/image`),
+                },
+            })),
+        };
         return res.status(200).json({
             user: {
                 userId: user.user_id,
@@ -321,7 +331,7 @@ export const getUserProfile = async (req, res) => {
                 name: user.name,
                 role: user.role,
                 isVerified: user.email_verified,
-                profileImage: user.profile_image || null,
+                profileImage: getFullUrl(req, user.profile_image, `/api/media/users/${user.user_id}/image?t=${Date.now()}`),
                 tickets: user.tickets,
                 favorites: user.favorites,
                 reviews: user.reviews,
@@ -338,7 +348,8 @@ export const getUserProfile = async (req, res) => {
 // Update User Profile
 export const updateUserProfile = async (req, res) => {
     const { name, email } = req.body;
-    const file = req.file;
+    const files = req.files;
+    const file = req.file || files?.image?.[0] || files?.profileImage?.[0] || null;
     try {
         const userId = req.user?.userId;
         console.log(`[Profile Update] Request received for userId: ${userId}`);
@@ -354,29 +365,38 @@ export const updateUserProfile = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const updateData = {};
-        if (name)
-            updateData.name = name;
-        if (email)
-            updateData.email = email;
+        if (name && typeof name === "string")
+            updateData.name = name.trim();
+        const trimmedEmail = typeof email === "string" ? email.trim() : "";
+        if (trimmedEmail)
+            updateData.email = trimmedEmail;
         // Handle profile image upload
         if (file) {
-            updateData.profile_image = toStoredPath(file.path);
+            console.log(`[Profile Update] Processing image: ${file.originalname}`);
+            const base64Data = await fileToBase64(file);
+            updateData.profile_image = base64Data;
+            console.log(`[Profile Update] Image converted to Base64 (length: ${base64Data.length})`);
+        }
+        else if (typeof req.body?.profileImage === "string" &&
+            req.body.profileImage.startsWith("data:image/")) {
+            // Optional compatibility path for clients sending Base64 image in JSON body.
+            updateData.profile_image = req.body.profileImage;
         }
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ message: "No fields to update" });
         }
         // If email is being updated, check if it's already in use
-        if (email) {
+        if (trimmedEmail) {
             const existingUser = await prisma.user.findUnique({
-                where: { email: email },
+                where: { email: trimmedEmail },
             });
             if (existingUser && existingUser.user_id !== userId) {
                 return res.status(400).json({ message: "Email already in use" });
             }
         }
-        console.log(`[Profile Update] Updating user ${userId} with:`, Object.keys(updateData));
+        console.log(`[Profile Update] Executing Prisma update for user ${userId}...`);
         const updatedUser = await prisma.user.update({
-            where: { user_id: userId },
+            where: { user_id: Number(userId) }, // Ensure it's a number
             data: updateData,
         });
         console.log(`[Profile Update] Success. New profile_image exists: ${!!updatedUser.profile_image}`);
@@ -388,7 +408,7 @@ export const updateUserProfile = async (req, res) => {
                 name: updatedUser.name,
                 role: updatedUser.role,
                 isVerified: updatedUser.email_verified,
-                profileImage: updatedUser.profile_image || null,
+                profileImage: getFullUrl(req, updatedUser.profile_image, `/api/media/users/${updatedUser.user_id}/image?t=${Date.now()}`),
             },
         });
     }
@@ -444,9 +464,7 @@ export const forgotPassword = async (req, res) => {
     }
     catch (error) {
         console.error("Error in forgot password:", error);
-        return res
-            .status(500)
-            .json({
+        return res.status(500).json({
             message: "Error processing forgot password request",
             error: error.message,
         });

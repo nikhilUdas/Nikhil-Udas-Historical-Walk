@@ -1,8 +1,8 @@
 import "../middleware/auth.js";
 import prisma from "../models/index.js";
 import { broadcastNotificationToAll } from "../services/socketService.js";
-import { toStoredPath } from "../utils/fileUpload.js";
-import { sendStoredFile } from "../utils/mediaPath.js";
+import { fileToBase64 } from "../utils/fileUpload.js";
+import { getFullUrl, sendStoredFile } from "../utils/mediaPath.js";
 import { createNotification } from "./notificationController.js";
 // ==================== ADMIN OPERATIONS ====================
 // Add a new museum (Admin only)
@@ -34,7 +34,7 @@ export const addMuseum = async (req, res) => {
                 .status(400)
                 .json({ message: "Museum with this name already exists" });
         }
-        const imagePath = file?.path ? toStoredPath(file.path) : undefined;
+        const imageData = file ? await fileToBase64(file) : undefined;
         // Create the museum
         const museum = await prisma.museum.create({
             data: {
@@ -42,7 +42,7 @@ export const addMuseum = async (req, res) => {
                 description,
                 opening_hours,
                 gps_coordinates,
-                image_path: imagePath,
+                image_path: imageData,
             },
         });
         // Handle multiple images if provided
@@ -53,7 +53,7 @@ export const addMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: museum.museum_id,
-                            image_path: toStoredPath(file.path),
+                            image_path: await fileToBase64(file),
                         },
                     });
                 }
@@ -75,7 +75,7 @@ export const addMuseum = async (req, res) => {
             message: "Museum added successfully",
             museum: {
                 ...museum,
-                image_url: museum.image_path || null,
+                image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
                 additional_images: [],
             },
         });
@@ -123,7 +123,7 @@ export const updateMuseum = async (req, res) => {
             updateData.gps_coordinates = gps_coordinates;
         // Handle image update if file is provided
         if (file) {
-            updateData.image_path = toStoredPath(file.path);
+            updateData.image_path = await fileToBase64(file);
         }
         // Check if there's anything to update
         if (Object.keys(updateData).length === 0) {
@@ -156,7 +156,7 @@ export const updateMuseum = async (req, res) => {
                     return prisma.museumImage.create({
                         data: {
                             museum_id: updatedMuseum.museum_id,
-                            image_path: toStoredPath(f.path),
+                            image_path: await fileToBase64(f),
                         },
                     });
                 }
@@ -170,7 +170,7 @@ export const updateMuseum = async (req, res) => {
             message: "Museum updated successfully",
             museum: {
                 ...updatedMuseum,
-                image_url: updatedMuseum.image_path || null,
+                image_url: getFullUrl(req, updatedMuseum.image_path, `/api/media/museums/${updatedMuseum.museum_id}/image`),
             },
         });
     }
@@ -239,8 +239,8 @@ export const getAllMuseums = async (req, res) => {
         // Transform museums to include image URLs
         const museumsWithImages = museums.map((museum) => ({
             ...museum,
-            image_url: museum.image_path || null,
-            additional_images: museum.images.map((img) => img.image_path),
+            image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
+            additional_images: museum.images.map((img) => getFullUrl(req, img.image_path, `/api/media/museums/additional/${img.image_id}`)),
         }));
         return res.status(200).json({
             message: "Museums retrieved successfully",
@@ -288,8 +288,8 @@ export const getMuseumById = async (req, res) => {
             message: "Museum retrieved successfully",
             museum: {
                 ...museum,
-                image_url: museum.image_path || null,
-                additional_images: museum.images.map((img) => img.image_path),
+                image_url: getFullUrl(req, museum.image_path, `/api/media/museums/${museum.museum_id}/image`),
+                additional_images: museum.images.map((img) => getFullUrl(req, img.image_path, `/api/media/museums/additional/${img.image_id}`)),
             },
         });
     }

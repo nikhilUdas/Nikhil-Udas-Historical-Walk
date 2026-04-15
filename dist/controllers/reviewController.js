@@ -1,9 +1,17 @@
 import prisma from '../models/index.js';
+// Removed image-related imports for reviews
 // Submit or update a review for a museum or heritage site
 export const submitReview = async (req, res) => {
     try {
         const userId = req.user?.userId;
-        const { museum_id, site_id, rating, thoughts } = req.body;
+        let { museum_id, site_id, rating, thoughts } = req.body;
+        // Explicitly cast to Number if they are provided, as they might be strings from FormData
+        if (museum_id)
+            museum_id = Number(museum_id);
+        if (site_id)
+            site_id = Number(site_id);
+        if (rating !== undefined)
+            rating = Number(rating);
         // Validation
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized: Please log in' });
@@ -38,12 +46,10 @@ export const submitReview = async (req, res) => {
                 return;
             }
             // Check if user has already reviewed this museum
-            existingReview = await prisma.review.findUnique({
+            existingReview = await prisma.review.findFirst({
                 where: {
-                    user_id_museum_id: {
-                        user_id: userId,
-                        museum_id: Number(museum_id),
-                    },
+                    user_id: userId,
+                    museum_id: Number(museum_id),
                 },
             });
         }
@@ -57,24 +63,24 @@ export const submitReview = async (req, res) => {
                 return;
             }
             // Check if user has already reviewed this site
-            existingReview = await prisma.review.findUnique({
+            existingReview = await prisma.review.findFirst({
                 where: {
-                    user_id_site_id: {
-                        user_id: userId,
-                        site_id: Number(site_id),
-                    },
+                    user_id: userId,
+                    site_id: Number(site_id),
                 },
             });
         }
         let review;
         if (existingReview) {
             // Update existing review
+            const updateData = {
+                rating: Number(rating),
+                thoughts,
+            };
+            // Removed image handling for updates
             review = await prisma.review.update({
                 where: { review_id: existingReview.review_id },
-                data: {
-                    rating: Number(rating),
-                    thoughts,
-                },
+                data: updateData,
                 include: {
                     user: {
                         select: {
@@ -99,7 +105,9 @@ export const submitReview = async (req, res) => {
             });
             res.status(200).json({
                 message: 'Review updated successfully',
-                review,
+                review: {
+                    ...review
+                },
             });
         }
         else {
@@ -136,7 +144,9 @@ export const submitReview = async (req, res) => {
             });
             res.status(201).json({
                 message: 'Review submitted successfully',
-                review,
+                review: {
+                    ...review
+                },
             });
         }
     }

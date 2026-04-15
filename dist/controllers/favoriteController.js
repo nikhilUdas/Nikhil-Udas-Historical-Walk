@@ -91,7 +91,96 @@ export const toggleFavorite = async (req, res) => {
     }
 };
 /**
- * Get all favorite sites for the authenticated user
+ * Toggle favorite status for a museum
+ */
+export const toggleFavoriteMuseum = async (req, res) => {
+    const { museum_id } = req.params;
+    const userId = req.user?.userId;
+    if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (!museum_id) {
+        return res.status(400).json({ message: 'Museum ID is required' });
+    }
+    const museumId = parseInt(museum_id);
+    if (isNaN(museumId)) {
+        return res.status(400).json({ message: 'Invalid Museum ID' });
+    }
+    try {
+        // Check if museum exists
+        const museum = await prisma.museum.findUnique({
+            where: { museum_id: museumId },
+        });
+        if (!museum) {
+            return res.status(404).json({ message: 'Museum not found' });
+        }
+        // Check if already favorited
+        const existingFavorite = await prisma.favoriteMuseum.findUnique({
+            where: {
+                user_id_museum_id: {
+                    user_id: userId,
+                    museum_id: museumId,
+                },
+            },
+        });
+        if (existingFavorite) {
+            // Remove from favorites
+            try {
+                await prisma.favoriteMuseum.delete({
+                    where: {
+                        fav_id: existingFavorite.fav_id,
+                    },
+                });
+                return res.status(200).json({
+                    message: 'Removed from favorites',
+                    isFavorite: false
+                });
+            }
+            catch (error) {
+                if (error.code === 'P2025') {
+                    return res.status(200).json({
+                        message: 'Removed from favorites',
+                        isFavorite: false
+                    });
+                }
+                throw error;
+            }
+        }
+        else {
+            // Add to favorites
+            try {
+                await prisma.favoriteMuseum.create({
+                    data: {
+                        user_id: userId,
+                        museum_id: museumId,
+                    },
+                });
+                return res.status(201).json({
+                    message: 'Added to favorites',
+                    isFavorite: true
+                });
+            }
+            catch (error) {
+                if (error.code === 'P2002') {
+                    return res.status(201).json({
+                        message: 'Added to favorites',
+                        isFavorite: true
+                    });
+                }
+                throw error;
+            }
+        }
+    }
+    catch (error) {
+        console.error('Error toggling museum favorite:', error);
+        return res.status(500).json({
+            message: 'Error toggling favorite',
+            error: error.message
+        });
+    }
+};
+/**
+ * Get all favorite sites and museums for the authenticated user
  */
 export const getUserFavorites = async (req, res) => {
     const userId = req.user?.userId;
@@ -99,14 +188,24 @@ export const getUserFavorites = async (req, res) => {
         return res.status(401).json({ message: 'Unauthorized' });
     }
     try {
-        const favorites = await prisma.favoriteSite.findMany({
+        const siteFavorites = await prisma.favoriteSite.findMany({
             where: { user_id: userId },
             include: {
                 site: true,
             },
         });
+        const museumFavorites = await prisma.favoriteMuseum.findMany({
+            where: { user_id: userId },
+            include: {
+                museum: true,
+            },
+        });
+        const favorites = [
+            ...siteFavorites.map(fav => ({ ...fav.site, type: 'site' })),
+            ...museumFavorites.map(fav => ({ ...fav.museum, type: 'museum' })),
+        ];
         return res.status(200).json({
-            favorites: favorites.map(fav => fav.site),
+            favorites: favorites,
         });
     }
     catch (error) {

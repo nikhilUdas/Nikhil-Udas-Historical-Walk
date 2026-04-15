@@ -34,7 +34,7 @@ initializeSocket(httpServer);
 // CORS configuration - MUST be before other middleware
 app.use(
   cors({
-    origin: ["http://localhost:8081", "http://127.0.0.1:8081"], // Your frontend URL
+    origin: ["http://localhost:8081", "http://127.0.0.1:8081", "http://10.124.240.190:8081"], // Your frontend URL
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,

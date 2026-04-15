@@ -1,4 +1,5 @@
 import prisma from "../models/index.js";
+import { getFullUrl } from "../utils/mediaPath.js";
 // Preview configuration - First 20% of content as free preview (min 50 chars)
 const getPreviewLength = (content) => {
     if (!content)
@@ -44,10 +45,13 @@ export const getStoriesPreview = async (req, res) => {
                     ? story.content.substring(0, previewLen) + "..."
                     : story.content,
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_path || null,
+                media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
                 has_full_content: story.content.length > previewLen,
                 is_unlocked: purchasedStoryIds.includes(story.story_id),
-                site: story.site,
+                site: {
+                    ...story.site,
+                    image_url: getFullUrl(req, story.site.photo_url || story.site.image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+                },
             };
         });
         return res.status(200).json({
@@ -98,9 +102,12 @@ export const getStoryPreviewById = async (req, res) => {
                 ? story.content.substring(0, previewLen) + "..."
                 : story.content,
             god_or_goddess_name: story.god_or_goddess_name,
-            media_url: story.media_path || null,
+            media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
             has_full_content: story.content.length > previewLen,
-            site: story.site,
+            site: {
+                ...story.site,
+                image_url: getFullUrl(req, story.site.photo_url || story.site.image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+            },
         };
         return res.status(200).json({
             message: "Story preview retrieved successfully",
@@ -156,9 +163,12 @@ export const getStoriesPreviewBySite = async (req, res) => {
                     ? story.content.substring(0, previewLen) + "..."
                     : story.content,
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_path || null,
+                media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
                 has_full_content: story.content.length > previewLen,
-                site: story.site,
+                site: {
+                    ...story.site,
+                    image_url: getFullUrl(req, story.site.photo_url || story.site.image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+                },
             };
         });
         return res.status(200).json({
@@ -222,8 +232,11 @@ export const getFullStory = async (req, res) => {
                 title: story.title,
                 content: story.content, // Full content
                 god_or_goddess_name: story.god_or_goddess_name,
-                media_url: story.media_path || null,
-                site: story.site,
+                media_url: getFullUrl(req, story.media_path, `/api/media/stories/${story.story_id}/image`),
+                site: {
+                    ...story.site,
+                    image_url: getFullUrl(req, story.site.photo_url || story.site.image_path, `/api/media/heritage-sites/${story.site.site_id}/image`),
+                },
             },
         });
     }
