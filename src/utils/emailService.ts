@@ -1,11 +1,12 @@
 import nodemailer from 'nodemailer';
 
-const SMTP_USER = (process.env.smtp_user || process.env.SMTP_USER)?.trim();
-const SMTP_PASS = (process.env.smtp_pass || process.env.SMTP_PASS)?.trim();
-const SMTP_HOST = (process.env.smtp_host || process.env.SMTP_HOST)?.trim() || 'smtp.gmail.com';
-const SMTP_PORT = Number((process.env.smtp_port || process.env.SMTP_PORT)?.toString().trim()) || 465;
+const SMTP_USER = (process.env.SMTP_USER || process.env.smtp_user)?.trim();
+const SMTP_PASS = (process.env.SMTP_PASS || process.env.smtp_pass)?.trim();
+const SMTP_HOST = (process.env.SMTP_HOST || process.env.smtp_host || 'smtp-relay.brevo.com')?.trim();
+const SMTP_PORT = Number(process.env.SMTP_PORT || process.env.smtp_port) || 587;
+const SMTP_FROM = (process.env.SMTP_FROM || process.env.smtp_from || SMTP_USER)?.trim();
 
-const smtpSecureRaw = (process.env.smtp_secure || process.env.SMTP_SECURE)?.toString().trim().toLowerCase();
+const smtpSecureRaw = (process.env.SMTP_SECURE || process.env.smtp_secure)?.toString().trim().toLowerCase();
 const SMTP_SECURE = smtpSecureRaw === 'true' || smtpSecureRaw === '1' || (SMTP_PORT === 465 && smtpSecureRaw !== 'false');
 
 
@@ -71,7 +72,7 @@ export const sendOTPEmail = async (email: string, otpCode: string, fullName: str
   // SMTP user is configured
 
   const mailOptions = {
-    from: SMTP_USER,
+    from: SMTP_FROM || SMTP_USER,
     to: email,
     subject: 'Historical Walk - Email Verification OTP',
     html: `
