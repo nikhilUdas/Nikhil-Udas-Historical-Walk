@@ -70,6 +70,7 @@ export const sendOTPEmail = async (email: string, otpCode: string, fullName: str
   }
 
   // SMTP user is configured
+  console.log(`[EmailService] Preparing email from: ${SMTP_FROM || SMTP_USER} to: ${email}`);
 
   const mailOptions = {
     from: SMTP_FROM || SMTP_USER,
