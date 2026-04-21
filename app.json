@@ -45,6 +45,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4d5f9a4c-55d3-42e7-9d4e-d3ded018e944"
+      }
+    },
+    "owner": "historicalwalk"
   }
 }

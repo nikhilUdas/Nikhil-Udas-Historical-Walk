@@ -3,26 +3,27 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    Image,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    Vibration,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import {
-    HeritageSite,
-    Museum,
-    museums as museumsApi,
-    notifications,
-    sites,
+  HeritageSite,
+  Museum,
+  museums as museumsApi,
+  notifications,
+  sites,
 } from "../api";
 import { useLanguage } from "../hooks/i18n";
 import { getImageUrl } from "../utils/image";
@@ -317,12 +318,16 @@ export default function HomeScreen() {
                             />
                           </View>
                         )}
-                        <View style={styles.cardGradient} />
-                        <View style={styles.cardContent}>
-                          <Text style={styles.cardTitle} numberOfLines={2}>
-                            {site.name}
-                          </Text>
-                        </View>
+                        <LinearGradient
+                          colors={["transparent", "rgba(0,0,0,0.8)"]}
+                          style={styles.cardGradient}
+                        >
+                          <View style={styles.cardContent}>
+                            <Text style={styles.cardTitle} numberOfLines={2}>
+                              {site.name}
+                            </Text>
+                          </View>
+                        </LinearGradient>
                       </TouchableOpacity>
                     ),
                 )}
@@ -391,12 +396,16 @@ export default function HomeScreen() {
                             />
                           </View>
                         )}
-                        <View style={styles.cardGradient} />
-                        <View style={styles.cardContent}>
-                          <Text style={styles.cardTitle} numberOfLines={2}>
-                            {museum.name}
-                          </Text>
-                        </View>
+                        <LinearGradient
+                          colors={["transparent", "rgba(0,0,0,0.8)"]}
+                          style={styles.cardGradient}
+                        >
+                          <View style={styles.cardContent}>
+                            <Text style={styles.cardTitle} numberOfLines={2}>
+                              {museum.name}
+                            </Text>
+                          </View>
+                        </LinearGradient>
                       </TouchableOpacity>
                     ),
                 )}
@@ -604,15 +613,17 @@ const styles = StyleSheet.create({
   },
   premiumCard: {
     width: 280,
-    height: 360,
-    borderRadius: 20,
+    height: 200, // Landscape orientation
+    borderRadius: 24, // Rounded corners as per image
     overflow: "hidden",
     backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb", // Subtle border for arrangement
     shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   cardImage: {
     width: "100%",
@@ -629,22 +640,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: "60%",
-    backgroundColor: "transparent",
-    backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)",
-    // For React Native, we use multiple overlays to simulate gradient
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    height: "60%", // Slightly taller gradient for landscape
+    justifyContent: "flex-end",
   },
   cardContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    paddingTop: 80,
-    backgroundColor:
-      "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%)",
+    padding: 16, // Adjusted padding for landscape
+    backgroundColor: "transparent",
   },
   cardBadge: {
     flexDirection: "row",

@@ -1,0 +1,497 @@
+
+> historicalwalk@1.0.0 test:unit
+> jest
+
+PASS automation_tests/initial.test.ts
+PASS automation_tests/TC002_RegistrationFailInvalidEmail.test.tsx
+PASS automation_tests/TC009_TicketGenerationAfterPayment.test.tsx
+PASS automation_tests/TC001_RegistrationSuccess.test.tsx
+PASS automation_tests/TC003_LoginSuccess.test.tsx
+  ΓùÅ Console
+
+    console.log
+      Attempting login with email: nikhil@example.com
+
+      at log (app/login.tsx:62:15)
+
+    console.log
+      Login successful
+
+      at log (app/login.tsx:69:15)
+
+    console.log
+      Login verified. User type: user. Navigating to /navigationbar
+
+      at log (app/login.tsx:114:15)
+
+PASS automation_tests/TC004_LoginFailIncorrectPassword.test.tsx
+  ΓùÅ Console
+
+    console.log
+      Attempting login with email: nikhil@example.com
+
+      at log (app/login.tsx:62:15)
+
+    console.error
+      Login error: Error: Invalid password
+          at Object.<anonymous> (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\automation_tests\TC004_LoginFailIncorrectPassword.test.tsx:16:49)
+          at Generator.next (<anonymous>)
+          at asyncGeneratorStep (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\@babel\runtime\helpers\asyncToGenerator.js:3:17)
+          at _next (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\@babel\runtime\helpers\asyncToGenerator.js:17:9)
+          at C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\@babel\runtime\helpers\asyncToGenerator.js:22:7
+          at new Promise (<anonymous>)
+          at Object.<anonymous> (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\@babel\runtime\helpers\asyncToGenerator.js:14:12)
+          at Promise.then.completed (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\utils.js:298:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\utils.js:231:10)
+          at _callCircusTest (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\run.js:316:40)
+          at processTicksAndRejections (node:internal/process/task_queues:103:5)
+          at _runTest (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\run.js:252:3)
+          at _runTestsForDescribeBlock (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\run.js:126:9)
+          at _runTestsForDescribeBlock (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\run.js:121:9)
+          at run (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\run.js:71:3)
+          at runAndTransformResultsToJestFormat (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
+          at jestAdapter (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
+          at runTestInternal (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-runner\build\runTest.js:367:16)
+          at runTest (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-runner\build\runTest.js:444:34)
+          at Object.worker (C:\Users\LOQ\Desktop\Documentations\FYP\code\HistoricalWalk\HistoricalWalk\node_modules\jest-runner\build\testWorker.js:106:12)
+
+      125 |
+      126 |     } catch (error: any) {
+    > 127 |       console.error('Login error:', error);
+          |               ^
+      128 |       setErrorMessage(error.message || "Invalid email or password");
+      129 |       setLoading(false);
+      130 |       return;
+
+      at error (app/login.tsx:127:15)
+          at Generator.throw (<anonymous>)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _throw (node_modules/@babel/runtime/helpers/asyncToGenerator.js:20:9)
+
+PASS automation_tests/TC010_SearchStories.test.tsx
+  ΓùÅ Console
+
+    console.log
+      HERITAGE []
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      {
+        sites: [
+          {
+            site_id: 1,
+            name: 'Pashupatinath Temple',
+            description: 'Hindu temple'
+          },
+          {
+            site_id: 2,
+            name: 'Boudhanath Stupa',
+            description: 'Buddhist stupa'
+          }
+        ]
+      }
+
+      at log (app/heritagesite.tsx:110:17)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath Temple',
+          description: 'Hindu temple'
+        },
+        {
+          site_id: 2,
+          name: 'Boudhanath Stupa',
+          description: 'Buddhist stupa'
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath Temple',
+          description: 'Hindu temple'
+        },
+        {
+          site_id: 2,
+          name: 'Boudhanath Stupa',
+          description: 'Buddhist stupa'
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+PASS automation_tests/TC008_PaymentSuccessful.test.tsx
+  ΓùÅ Console
+
+    console.log
+      HERITAGE []
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      {
+        sites: [
+          {
+            site_id: 1,
+            name: 'Pashupatinath',
+            description: 'Locked content',
+            is_unlocked: false,
+            has_full_content: true,
+            id: 1
+          }
+        ]
+      }
+
+      at log (app/heritagesite.tsx:110:17)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Locked content',
+          is_unlocked: false,
+          has_full_content: true,
+          id: 1
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Locked content',
+          is_unlocked: false,
+          has_full_content: true,
+          id: 1
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Locked content',
+          is_unlocked: false,
+          has_full_content: true,
+          id: 1
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Locked content',
+          is_unlocked: false,
+          has_full_content: true,
+          id: 1
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+FAIL automation_tests/TC007_AddReviewSuccess.test.tsx
+  ΓùÅ Console
+
+    console.log
+      HERITAGE []
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      {
+        sites: [
+          {
+            site_id: 1,
+            name: 'Pashupatinath',
+            description: 'Template',
+            is_unlocked: true,
+            has_full_content: true
+          }
+        ]
+      }
+
+      at log (app/heritagesite.tsx:110:17)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Template',
+          is_unlocked: true,
+          has_full_content: true
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Template',
+          is_unlocked: true,
+          has_full_content: true
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Template',
+          is_unlocked: true,
+          has_full_content: true
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+    console.log
+      HERITAGE [
+        {
+          site_id: 1,
+          name: 'Pashupatinath',
+          description: 'Template',
+          is_unlocked: true,
+          has_full_content: true
+        }
+      ]
+
+      at log (app/heritagesite.tsx:173:11)
+
+  ΓùÅ TC007: Add Review Successfully ΓÇ║ should submit a review successfully
+
+    Unable to find an element with placeholder: Share your experience...
+
+    <RCTSafeAreaView>
+      <RCTScrollView>
+        <View>
+          <View>
+            <View>
+              <View>
+                <View
+                  accessible={true}
+                >
+                  <Ionicons />
+                </View>
+                <View>
+                  <Text>
+                    Heritage Sites
+                  </Text>
+                  <Text>
+                    Explore Nepal's rich cultural treasures
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          <View>
+            <Ionicons />
+            <TextInput
+              placeholder="Search heritage sites..."
+              value=""
+            />
+          </View>
+          <View>
+            <View>
+              <Text>
+                No image available
+              </Text>
+            </View>
+            <View>
+              <Text>
+                Pashupatinath
+              </Text>
+              <Text />
+              <Text>
+                Template
+              </Text>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+                <Text>
+                  Read Now
+                </Text>
+              </View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+            </View>
+          </View>
+        </View>
+      </RCTScrollView>
+      <Modal>
+        <View>
+          <View>
+            <View>
+              <Text>
+                Pashupatinath
+              </Text>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+            </View>
+            <RCTScrollView>
+              <View>
+                <Text>
+                  Template
+                </Text>
+                <View
+                  accessible={true}
+                >
+                  <Ionicons />
+                  <Text>
+                    Write a Review
+                  </Text>
+                </View>
+                <View
+                  accessible={true}
+                >
+                  <Ionicons />
+                  <Text>
+                    See User Reviews
+                  </Text>
+                </View>
+              </View>
+            </RCTScrollView>
+          </View>
+        </View>
+      </Modal>
+      <Modal>
+        <View>
+          <View>
+            <View>
+              <Text>
+                Rate Your Experience
+              </Text>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+            </View>
+            <View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+              <View
+                accessible={true}
+              >
+                <Ionicons />
+              </View>
+            </View>
+            <TextInput
+              placeholder="Tell us what you liked about this place..."
+              value=""
+            />
+            <View>
+              <View
+                accessibilityState={
+                  {
+                    "disabled": false,
+                  }
+                }
+                accessible={true}
+              >
+                <Text>
+                  Submit Review
+                </Text>
+              </View>
+              <View
+                accessible={true}
+              >
+                <Text>
+                  Close
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </RCTSafeAreaView>
+
+      60 |
+      61 |     // Fill review
+    > 62 |     fireEvent.changeText(screen.getByPlaceholderText('Share your experience...'), 'Amazing place!');
+         |                                 ^
+      63 |     
+      64 |     // Select rating
+      65 |     fireEvent.press(screen.getByTestId('star-5'));
+
+      at Object.getByPlaceholderText (automation_tests/TC007_AddReviewSuccess.test.tsx:62:33)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+PASS automation_tests/TC005_CreateStorySuccess.test.tsx
+FAIL automation_tests/TC006_CreateStoryFailMissingFields.test.tsx
+  ΓùÅ TC006: Story Creation Fails (Missing Fields) ΓÇ║ should show an alert if required fields are missing
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "Error", "Please fill in all required fields (Name, Description, Photo, GPS Coordinates)"
+    Received: "Error", "Please fill in all required fields"
+
+    Number of calls: 1
+
+      56 |     fireEvent.press(screen.getByText('Add Site'));
+      57 |
+    > 58 |     await waitFor(() => {
+         |                  ^
+      59 |       expect(Alert.alert).toHaveBeenCalledWith(
+      60 |         'Error',
+      61 |         'Please fill in all required fields (Name, Description, Photo, GPS Coordinates)'
+
+      at Object.<anonymous> (automation_tests/TC006_CreateStoryFailMissingFields.test.tsx:58:18)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+Test Suites: 2 failed, 9 passed, 11 total
+Tests:       2 failed, 9 passed, 11 total
+Snapshots:   0 total
+Time:        6.747 s
+Ran all test suites.

@@ -13,6 +13,8 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [distance, setDistance] = useState<number | null>(null);
+  const [duration, setDuration] = useState<number | null>(null); // New state for travel duration
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number, longitude: number }[]>([]); // New state for actual road path
   const [destinationCoords, setDestinationCoords] = useState<{ latitude: number, longitude: number } | null>(null);
   const [destinationName, setDestinationName] = useState<string>('');
 
@@ -34,26 +36,72 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (userLocation && destinationCoords) {
-      const dist = calculateDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        destinationCoords.latitude,
-        destinationCoords.longitude
-      );
-      setDistance(dist);
-
-      // Fit map to show both locations
-      setTimeout(() => {
-        mapRef.current?.fitToCoordinates(
-          [userLocation, destinationCoords],
-          {
-            edgePadding: { top: 100, right: 50, bottom: 100, left: 50 },
-            animated: true,
-          }
-        );
-      }, 500);
+      fetchRoute(userLocation, destinationCoords);
     }
   }, [userLocation, destinationCoords]);
+
+  // Decode OSRM/Google polyline
+  const decodePolyline = (t: string) => {
+    let points = [];
+    let index = 0, len = t.length;
+    let lat = 0, lng = 0;
+
+    while (index < len) {
+      let b, shift = 0, result = 0;
+      do {
+        b = t.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = t.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.push({ latitude: (lat / 1E5), longitude: (lng / 1E5) });
+    }
+    return points;
+  };
+
+  const fetchRoute = async (start: any, end: any) => {
+    try {
+      // OSRM Public API (for driving)
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=polyline`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const decodedCoords = decodePolyline(route.geometry);
+        setRouteCoords(decodedCoords);
+        setDistance(route.distance / 1000); // meters to km
+        setDuration(route.duration / 60); // seconds to minutes
+
+        // Fit map to show the entire route
+        setTimeout(() => {
+          mapRef.current?.fitToCoordinates(
+            decodedCoords,
+            {
+              edgePadding: { top: 120, right: 60, bottom: 200, left: 60 },
+              animated: true,
+            }
+          );
+        }, 300);
+      }
+    } catch (error) {
+      console.error('Error fetching OSRM route:', error);
+      // Fallback to straight line if API fails
+      setRouteCoords([start, end]);
+    }
+  };
 
   const requestLocationPermission = async () => {
     try {
@@ -122,26 +170,36 @@ export default function MapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Header with distance info */}
+      {/* Header Info */}
       <View style={styles.headerSection}>
-        <Text style={styles.title}>Map Navigation</Text>
-        {destinationName ? (
-          <Text style={styles.subtitle}>Route to {destinationName}</Text>
-        ) : (
-          <Text style={styles.subtitle}>Your current location</Text>
-        )}
-        {distance !== null && (
-          <View style={styles.distanceCard}>
-            <Ionicons name="navigate" size={20} color="#b91c1c" />
-            <Text style={styles.distanceText}>
-              {distance < 1
-                ? `${(distance * 1000).toFixed(0)} meters away`
-                : `${distance.toFixed(2)} km away`
-              }
-            </Text>
-          </View>
-        )}
+        <Text style={styles.title}>Navigate to {destinationName || 'Destiny'}</Text>
+        <Text style={styles.subtitle}>Nepal Heritage Sites</Text>
       </View>
+
+      {/* Navigation Info Popup */}
+      {distance !== null && (
+        <View style={styles.navCard}>
+          <View style={styles.navCardInner}>
+            <View style={styles.navInfoItem}>
+              <Text style={styles.navInfoLabel}>DISTANCE</Text>
+              <Text style={styles.navInfoValue}>{distance.toFixed(1)} km</Text>
+            </View>
+            <View style={styles.navDivider} />
+            <View style={styles.navInfoItem}>
+              <Text style={styles.navInfoLabel}>TRAVEL TIME</Text>
+              <Text style={styles.navInfoValue}>
+                {duration ? Math.round(duration) : '--'} mins
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.arriveButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.arriveButtonText}>CLOSE NAVIGATION</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -157,12 +215,22 @@ export default function MapScreen() {
           showsMyLocationButton
           showsCompass
         >
+          {/* Accurate Road Route */}
+          {routeCoords.length > 0 && (
+            <Polyline
+              coordinates={routeCoords}
+              strokeColor="#3b82f6" // Premium Google Blue
+              strokeWidth={6}
+              lineJoin="round"
+              lineCap="round"
+            />
+          )}
+
           {/* User location marker */}
           {userLocation && (
             <Marker
               coordinate={userLocation}
               title="Your Location"
-              description="You are here"
               pinColor="blue"
             />
           )}
@@ -171,20 +239,12 @@ export default function MapScreen() {
           {destinationCoords && (
             <Marker
               coordinate={destinationCoords}
-              title={destinationName || 'Destination'}
-              description="Heritage Site Location"
-              pinColor="red"
-            />
-          )}
-
-          {/* Route line between user and destination */}
-          {userLocation && destinationCoords && (
-            <Polyline
-              coordinates={[userLocation, destinationCoords]}
-              strokeColor="#b91c1c"
-              strokeWidth={3}
-              lineDashPattern={[10, 5]}
-            />
+              title={destinationName}
+            >
+              <View style={styles.destMarker}>
+                <Ionicons name="location" size={32} color="#b91c1c" />
+              </View>
+            </Marker>
           )}
         </MapView>
       )}
@@ -265,5 +325,63 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  navCard: {
+    position: 'absolute',
+    bottom: 40,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  navCardInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  navInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  navInfoLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9ca3af',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  navInfoValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  navDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#f3f4f6',
+  },
+  arriveButton: {
+    backgroundColor: '#1f2937', // Dark charcoal
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  arriveButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  destMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

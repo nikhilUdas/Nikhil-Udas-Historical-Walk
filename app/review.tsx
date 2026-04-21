@@ -159,7 +159,7 @@ export default function ReviewScreen() {
         <View style={styles.headerSection}>
           <Text style={styles.title}>{userType === 'admin' ? 'All Reviews' : 'My Reviews'}</Text>
           <Text style={styles.subtitle}>
-            {userType === 'admin' ? 'Manage all museum reviews' : 'Manage your museum reviews'}
+            {userType === 'admin' ? 'Manage all reviews' : 'Manage your reviews'}
           </Text>
         </View>
 
@@ -175,7 +175,7 @@ export default function ReviewScreen() {
             <Ionicons name="chatbubbles-outline" size={64} color="#cbd5e1" />
             <Text style={styles.emptyTitle}>No Reviews Yet</Text>
             <Text style={styles.emptySubtitle}>
-              Visit museums and share your experience!
+              Visit places and share your experience!
             </Text>
           </View>
         ) : (
@@ -184,7 +184,9 @@ export default function ReviewScreen() {
               <View key={review.review_id} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View style={styles.museumInfo}>
-                    <Text style={styles.museumName}>{review.museum?.name || 'Unknown Museum'}</Text>
+                    <Text style={styles.museumName}>
+                      {review.museum?.name || review.site?.name || 'Unknown Item'}
+                    </Text>
                     {userType === 'admin' && review.user && (
                       <View style={styles.userNameRow}>
                         <Ionicons name="person" size={14} color="#6b7280" />

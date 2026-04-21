@@ -183,6 +183,7 @@ export default function AdminDashboard() {
       { text: "Cancel", style: "cancel" },
       {
         text: "Logout",
+        style: "destructive",
         onPress: async () => {
           try {
             await AsyncStorage.multiRemove(["jwtToken", "userType", "user"]);
@@ -395,15 +396,19 @@ export default function AdminDashboard() {
       {/* Premium Header */}
       <View style={{ overflow: "hidden", paddingBottom: 10 }}>
         <LinearGradient
-          colors={["#1e3a8a", "#3b82f6"]}
+          colors={["#b91c1c", "#7f1d1d"]} // Premium Red Gradient
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
         >
           <View style={styles.headerTop}>
             <View style={styles.headerLeft}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarEmoji}>👨‍💼</Text>
+              <View style={styles.logoContainer}>
+                <Image
+                  source={require("../assets/images/logo.png")}
+                  style={styles.headerLogo}
+                  resizeMode="contain"
+                />
               </View>
               <View>
                 <Text style={styles.headerSubtitle}>ADMIN CONSOLE</Text>
@@ -515,13 +520,13 @@ export default function AdminDashboard() {
           <>
             {/* Stats Cards */}
             <View style={styles.statsGrid}>
-              <View style={[styles.statCard, { backgroundColor: "#EFF6FF" }]}>
+              <View style={[styles.statCard, { backgroundColor: "#FEF2F2" }]}>
                 <View
-                  style={[styles.statIconBox, { backgroundColor: "#2563EB" }]}
+                  style={[styles.statIconBox, { backgroundColor: "#b91c1c" }]}
                 >
                   <Ionicons name="people" size={24} color="#fff" />
                 </View>
-                <Text style={[styles.statCardValue, { color: "#2563EB" }]}>
+                <Text style={[styles.statCardValue, { color: "#b91c1c" }]}>
                   {stats.users}
                 </Text>
                 <Text style={styles.statCardLabel}>Total Users</Text>
@@ -586,7 +591,7 @@ export default function AdminDashboard() {
             {/* Quick Actions */}
             <View style={styles.actionsGrid}>
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#2563EB" }]}
+                style={[styles.actionButton, { backgroundColor: "#b91c1c" }]}
                 onPress={() => setActiveTab("scanner")}
               >
                 <Ionicons name="qr-code-outline" size={20} color="#fff" />
@@ -1122,7 +1127,7 @@ export default function AdminDashboard() {
                   <Text style={styles.detailsTitle}>{selectedSite.name}</Text>
 
                   <View style={styles.detailsLocation}>
-                    <Ionicons name="location" size={18} color="#2563EB" />
+                    <Ionicons name="location" size={18} color="#b91c1c" />
                     <Text style={styles.detailsLocationText}>
                       {selectedSite.gps_coordinates || "Location not specified"}
                     </Text>
@@ -1174,18 +1179,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
   },
-  avatarCircle: {
+  logoContainer: {
     width: 50,
     height: 50,
-    borderRadius: 25,
     backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
+    borderRadius: 12,
     justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.3)",
   },
-  avatarEmoji: {
-    fontSize: 26,
+  headerLogo: {
+    width: 38,
+    height: 38,
   },
   headerSubtitle: {
     fontSize: 11,
@@ -1268,9 +1274,9 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   activeTab: {
-    backgroundColor: "#1e3a8a",
-    borderColor: "#1e3a8a",
-    shadowColor: "#1e3a8a",
+    backgroundColor: "#b91c1c",
+    borderColor: "#b91c1c",
+    shadowColor: "#b91c1c",
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
@@ -1368,7 +1374,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#3b82f6",
+    color: "#b91c1c",
   },
 
   // Reviews
@@ -1917,7 +1923,7 @@ const styles = StyleSheet.create({
     width: 250,
     height: 250,
     borderWidth: 2,
-    borderColor: "#3b82f6",
+    borderColor: "#b91c1c",
     borderRadius: 20,
     backgroundColor: "transparent",
   },
@@ -1925,7 +1931,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 30,
     alignSelf: "center",
-    backgroundColor: "#2563EB",
+    backgroundColor: "#b91c1c",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 30,

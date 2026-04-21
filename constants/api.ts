@@ -1,7 +1,8 @@
 // Base URL for all backend requests. Configure via EXPO_PUBLIC_API_BASE_URL at runtime.
 // Fallback points to localhost for dev. Keep trailing /api for consistency with server routes.
 export const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ??"https://nikhil-udas-historical-walk.onrender.com";
+  // process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://192.168.1.6:8000";
+process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://nikhil-udas-historical-walk.onrender.com";
 // If you encounter connection issues, ensure 192.168.100.95 matches your computer's IP.
 
 export const API_BASE = `${BASE_URL}/api/users`;

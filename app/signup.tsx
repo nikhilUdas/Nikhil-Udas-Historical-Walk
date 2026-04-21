@@ -9,7 +9,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { auth } from "../api";
 
@@ -24,6 +24,14 @@ export default function SignUpScreen() {
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  const validatePassword = (value: string) => {
+    if (value.length < 6) {
+      return "Password must be at least 6 characters";
+    }
+
+    return "";
   };
 
   const handleSignUp = async () => {
@@ -51,8 +59,9 @@ export default function SignUpScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setErrorMessage(passwordError);
       return;
     }
 
@@ -68,11 +77,10 @@ export default function SignUpScreen() {
 
       router.push({
         pathname: "/otp",
-        params: { email: email.trim().toLowerCase() }
+        params: { email: email.trim().toLowerCase() },
       });
-
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error("Signup error:", error);
       setErrorMessage(error.message || "Failed to create account");
     } finally {
       setLoading(false);
@@ -81,9 +89,7 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.contentContainer}
-      >
+      <ScrollView contentContainerStyle={styles.contentContainer}>
         {/* Header with Background Image */}
         <ImageBackground
           source={require("../assets/images/background.jpg")}
@@ -176,7 +182,10 @@ export default function SignUpScreen() {
 
           {/* Create Account Button */}
           <TouchableOpacity
-            style={[styles.signupButton, loading && styles.signupButtonDisabled]}
+            style={[
+              styles.signupButton,
+              loading && styles.signupButtonDisabled,
+            ]}
             onPress={handleSignUp}
             disabled={loading}
           >

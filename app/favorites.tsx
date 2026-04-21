@@ -41,10 +41,15 @@ export default function FavoritesScreen() {
     fetchFavorites();
   }, []);
 
-  const handleToggleFavorite = async (siteId: number) => {
-    if (!siteId) return;
+  const handleToggleFavorite = async (item: any) => {
+    const id = item.museum_id || item.site_id || item.id;
+    if (!id) return;
     try {
-      await favoritesApi.toggle(siteId);
+      if (item.type === "museum") {
+        await favoritesApi.toggleMuseum(id);
+      } else {
+        await favoritesApi.toggle(id);
+      }
       // Refresh list after toggling
       fetchFavorites();
     } catch (err: any) {
@@ -52,9 +57,13 @@ export default function FavoritesScreen() {
     }
   };
 
-  const navigateToSite = (site: any) => {
-    if (!site) return;
-    router.push("/heritagesite");
+  const navigateToSite = (item: any) => {
+    if (!item) return;
+    if (item.type === "museum") {
+      router.push("/museum");
+    } else {
+      router.push("/heritagesite");
+    }
   };
 
   return (
@@ -66,7 +75,7 @@ export default function FavoritesScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#1e293b" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Favorite Sites</Text>
+        <Text style={styles.headerTitle}>My Favorites</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -99,21 +108,21 @@ export default function FavoritesScreen() {
               onPress={() => router.push("/heritagesite")}
             >
               <Text style={styles.exploreButtonText}>
-                Explore Heritage Sites
+                Explore Sites
               </Text>
             </TouchableOpacity>
           </View>
         ) : (
-          favorites.map((site, idx) => {
-            if (!site) return null;
-            const siteId = site.site_id || site.id;
-            const imageUrl = site.image_url || site.photo_url || site.photoUrl;
+          favorites.map((item, idx) => {
+            if (!item) return null;
+            const id = item.museum_id || item.site_id || item.id;
+            const imageUrl = item.image_url || item.photo_url || item.photoUrl || item.image;
 
             return (
               <TouchableOpacity
-                key={`${siteId || idx}`}
+                key={`${id || idx}`}
                 style={styles.card}
-                onPress={() => navigateToSite(site)}
+                onPress={() => navigateToSite(item)}
               >
                 <Image
                   source={{ uri: getImageUrl(imageUrl) }}
@@ -121,11 +130,30 @@ export default function FavoritesScreen() {
                 />
                 <View style={styles.cardContent}>
                   <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle} numberOfLines={1}>
-                      {site.name || "Unknown Site"}
-                    </Text>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>
+                        {item.name || "Unknown Item"}
+                      </Text>
+                      <View style={{
+                        backgroundColor: item.type === 'museum' ? '#eff6ff' : '#fff1f2',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                        alignSelf: 'flex-start',
+                        marginTop: 2
+                      }}>
+                        <Text style={{
+                          fontSize: 10,
+                          fontWeight: '700',
+                          color: item.type === 'museum' ? '#1e40af' : '#9f1239',
+                          textTransform: 'uppercase'
+                        }}>
+                          {item.type || 'Site'}
+                        </Text>
+                      </View>
+                    </View>
                     <TouchableOpacity
-                      onPress={() => handleToggleFavorite(siteId)}
+                      onPress={() => handleToggleFavorite(item)}
                       style={styles.favoriteButton}
                     >
                       <Ionicons name="heart" size={20} color="#ef4444" />
@@ -137,10 +165,10 @@ export default function FavoritesScreen() {
                       size={12}
                       color="#64748b"
                     />{" "}
-                    {site.location || "Nepal"}
+                    {item.location || "Nepal"}
                   </Text>
                   <Text style={styles.cardDescription} numberOfLines={2}>
-                    {site.description || "No description available."}
+                    {item.description || "No description available."}
                   </Text>
                 </View>
               </TouchableOpacity>

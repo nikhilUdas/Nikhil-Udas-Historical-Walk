@@ -6,14 +6,19 @@ import { BASE_URL } from "../constants/api";
  * If the path is relative, it is appended to the BASE_URL.
  * If the path is empty or null, a placeholder or empty string is returned (optional).
  */
-export const getImageUrl = (path: string | null | undefined): string => {
-    if (!path || typeof path !== 'string') return "";
-    // Handle full URLs and file paths
-    if (path.startsWith("http") || path.startsWith("file://")) return path;
+export const getImageUrl = (path: string | null | undefined): string | undefined => {
+    if (!path || typeof path !== 'string' || path === 'null' || path === 'undefined') return undefined;
+    
+    // If it's already a full URL (starts with http), a local file path, or a base64 data URI, return it as is
+    if (path.startsWith("http") || path.startsWith("file://") || path.startsWith("data:")) {
+        return path;
+    }
 
-    // Remove leading slash if present to avoid double slashes with BASE_URL
+    // Remove leading slash if present 
     const cleanPath = path.startsWith("/") ? path.substring(1) : path;
-
-    // Ensure BASE_URL doesn't have a trailing slash
-    return `${BASE_URL.replace(/\/$/, "")}/${cleanPath}`;
+    
+    // Construct the full URL using BASE_URL
+    const fullUrl = `${BASE_URL.replace(/\/$/, "")}/${cleanPath}`;
+    
+    return fullUrl;
 };

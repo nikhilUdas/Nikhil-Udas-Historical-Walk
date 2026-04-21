@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router"; // Added import
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Image,
-    Linking,
     Modal,
     SafeAreaView,
     ScrollView,
@@ -14,16 +14,17 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { WebView } from "react-native-webview";
-import { favorites, payment as paymentApi, sites } from "../api";
+import { favorites, payment as paymentApi, reviews, sites } from "../api";
 import { getImageUrl } from "../utils/image";
 
 import { useLanguage } from "../hooks/i18n";
 
 function HeritageSiteScreen() {
+  const router = useRouter(); // Added router
   const { t } = useLanguage();
   const [heritage, setHeritage] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +70,20 @@ function HeritageSiteScreen() {
   const [favoriteSiteIds, setFavoriteSiteIds] = useState<Set<number>>(
     new Set(),
   );
+  // Review State
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showReviewsListModal, setShowReviewsListModal] = useState(false);
+  const [siteReviewSummary, setSiteReviewSummary] = useState<{
+    averageRating: string;
+    totalReviews: number;
+    reviews: any[];
+  } | null>(null);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewThoughts, setReviewThoughts] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [originalHeritageForm, setOriginalHeritageForm] = useState<any>(null);
+  const [originalHeritageImages, setOriginalHeritageImages] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchUserType = async () => {
@@ -177,7 +192,6 @@ function HeritageSiteScreen() {
         const lat = parseFloat(match[1]);
         const lng = parseFloat(match[2]);
         // Navigate to map screen with coordinates
-        const router = require("expo-router").router;
         router.push({
           pathname: "/map",
           params: {
@@ -192,24 +206,6 @@ function HeritageSiteScreen() {
     } catch (error) {
       console.error("Navigation error:", error);
       Alert.alert("Error", "Could not open map navigation");
-    }
-  };
-
-  const openGoogleMaps = (gpsCoordinates: string) => {
-    try {
-      // Parse coordinates in format "27.7172°N, 85.3240°E"
-      const match = gpsCoordinates.match(/(\d+\.\d+)°[NS],\s*(\d+\.\d+)°[EW]/);
-      if (match) {
-        const lat = parseFloat(match[1]);
-        const lng = parseFloat(match[2]);
-        const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-        Linking.openURL(url);
-      } else {
-        Alert.alert("Error", "Invalid coordinates format");
-      }
-    } catch (error) {
-      console.error("Google Maps error:", error);
-      Alert.alert("Error", "Could not open Google Maps");
     }
   };
 
@@ -374,6 +370,40 @@ function HeritageSiteScreen() {
     }
   };
 
+  const handleReviewSubmit = async () => {
+    if (!selectedSite) return;
+    const siteId = selectedSite.site_id || selectedSite.id;
+
+    if (reviewRating === 0) {
+      Alert.alert("Error", "Please choose a rating for this site.");
+      return;
+    }
+
+    if (!reviewThoughts.trim()) {
+      Alert.alert("Error", "Please write your thoughts about this site.");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const formData = new FormData();
+      formData.append("site_id", String(siteId));
+      formData.append("rating", String(reviewRating));
+      formData.append("thoughts", reviewThoughts.trim());
+
+      await reviews.create(formData);
+      Alert.alert("Success", "Thank you for your review!");
+      setShowReviewModal(false);
+      setReviewThoughts("");
+      setReviewRating(0);
+    } catch (err: any) {
+      console.error("Review error:", err);
+      Alert.alert("Error", err.message || "Could not submit review.");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const removeHeritageSiteImage = (index: number) => {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -404,6 +434,21 @@ function HeritageSiteScreen() {
       formData.append("name", heritageSiteForm.name);
       formData.append("description", heritageSiteForm.description);
       formData.append("gps_coordinates", heritageSiteForm.gps_coordinates);
+
+      if (isEditing) {
+        const hasFormChanged = Object.keys(heritageSiteForm).some(
+          (key) => heritageSiteForm[key as keyof typeof heritageSiteForm] !== originalHeritageForm?.[key]
+        );
+        const haveImagesChanged = 
+          selectedImages.length !== originalHeritageImages.length ||
+          selectedImages.some((uri, i) => uri !== originalHeritageImages[i]);
+
+        if (!hasFormChanged && !haveImagesChanged) {
+          Alert.alert("No Changes", "No changes detected. Please modify at least one field before updating.");
+          setSubmittingHeritageSite(false);
+          return;
+        }
+      }
 
       if (selectedImages && selectedImages.length > 0) {
         selectedImages.forEach((uri, index) => {
@@ -482,17 +527,25 @@ function HeritageSiteScreen() {
 
     // Support multiple images for editing
     const mainImage = getImageUrl(site.image_url || site.photo_url);
-    const existingImages = site.additional_images || [];
+    const existingImages = (site.additional_images || [])
+      .map((img: string) => getImageUrl(img))
+      .filter(Boolean);
     const allImages = mainImage
       ? [mainImage, ...existingImages]
       : existingImages;
-    setSelectedImages(allImages);
+    setSelectedImages(allImages as string[]);
 
     setHeritageSiteForm({
       name: site.name || "",
-      description: site.description || "",
+      description: site.full_description || site.description || "",
       gps_coordinates: site.gps_coordinates || "",
     });
+    setOriginalHeritageForm({
+      name: site.name || "",
+      description: site.full_description || site.description || "",
+      gps_coordinates: site.gps_coordinates || "",
+    });
+    setOriginalHeritageImages(allImages as string[]);
     // Parse coordinates for map
     if (site.gps_coordinates) {
       const match = site.gps_coordinates.match(
@@ -558,6 +611,25 @@ function HeritageSiteScreen() {
     const coordString = `${selectedCoords.latitude.toFixed(4)}°N, ${selectedCoords.longitude.toFixed(4)}°E`;
     setHeritageSiteForm({ ...heritageSiteForm, gps_coordinates: coordString });
     setShowMapModal(false);
+  };
+
+  const openReviewsList = async (site: any) => {
+    const siteId = site.site_id || site.id;
+    setLoadingReviews(true);
+    setShowReviewsListModal(true);
+    try {
+      const data = await reviews.getSummary({ site_id: siteId });
+      setSiteReviewSummary({
+        averageRating: data.averageRating,
+        totalReviews: data.totalReviews,
+        reviews: data.reviews,
+      });
+    } catch (err: any) {
+      console.error("Fetch reviews error:", err);
+      Alert.alert("Error", "Could not load reviews.");
+    } finally {
+      setLoadingReviews(false);
+    }
   };
 
   const fetchSearchSuggestions = async (query: string) => {
@@ -659,11 +731,19 @@ function HeritageSiteScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerSection}>
           <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.title}>Heritage Sites</Text>
-              <Text style={styles.description}>
-                Explore Nepal's rich cultural treasures
-              </Text>
+            <View style={styles.headerLeftWithBack}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => router.replace("/navigationbar")}
+              >
+                <Ionicons name="chevron-back" size={28} color="#1f2937" />
+              </TouchableOpacity>
+              <View>
+                <Text style={styles.title}>Heritage Sites</Text>
+                <Text style={styles.description}>
+                  Explore Nepal's rich cultural treasures
+                </Text>
+              </View>
             </View>
             {userType === "admin" && (
               <TouchableOpacity
@@ -781,32 +861,36 @@ function HeritageSiteScreen() {
                       </Text>
                     </TouchableOpacity>
                   )}
-                  {site.gps_coordinates ? (
+                  {site.gps_coordinates && userType === "user" ? (
                     <View style={styles.navigationButtons}>
                       <TouchableOpacity
                         style={styles.navButton}
+                        activeOpacity={0.8}
                         onPress={() =>
                           openMapNavigation(site.gps_coordinates, site.name)
                         }
                       >
-                        <Ionicons name="navigate" size={16} color="#2563EB" />
-                        <Text style={styles.navButtonText}>In-App Map</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.navButton, styles.googleMapButton]}
-                        onPress={() => openGoogleMaps(site.gps_coordinates)}
-                      >
-                        <Ionicons
-                          name="logo-google"
-                          size={16}
-                          color="#059669"
-                        />
-                        <Text style={styles.googleMapButtonText}>
-                          Google Maps
-                        </Text>
+                        <Ionicons name="navigate" size={18} color="#b91c1c" />
+                        <Text style={styles.navButtonText}>Navigate</Text>
                       </TouchableOpacity>
                     </View>
                   ) : null}
+
+                  {userType === "user" && (
+                    <TouchableOpacity
+                      style={styles.seeReviewsButton}
+                      onPress={() => openReviewsList(site)}
+                    >
+                      <Ionicons
+                        name="chatbubbles-outline"
+                        size={18}
+                        color="#2563eb"
+                      />
+                      <Text style={styles.seeReviewsButtonText}>
+                        See User Reviews
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   {userType === "admin" && (
                     <View style={styles.footerRow}>
                       <TouchableOpacity
@@ -940,7 +1024,7 @@ function HeritageSiteScreen() {
                   showsHorizontalScrollIndicator={false}
                   style={styles.imagePreviewList}
                 >
-                  {selectedImages.map((uri, index) => (
+                  {selectedImages.filter(Boolean).map((uri, index) => (
                     <View key={index} style={styles.previewImageWrapper}>
                       <Image source={{ uri }} style={styles.previewThumbnail} />
                       <TouchableOpacity
@@ -1103,9 +1187,177 @@ function HeritageSiteScreen() {
                   >
                     {selectedSite.full_description || selectedSite.description}
                   </Text>
+
+                  {userType === "user" && (
+                    <TouchableOpacity
+                      style={styles.leaveReviewButton}
+                      onPress={() => setShowReviewModal(true)}
+                    >
+                      <Ionicons name="star" size={18} color="#fff" />
+                      <Text style={styles.leaveReviewButtonText}>
+                        Write a Review
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.seeReviewsButton}
+                    onPress={() => openReviewsList(selectedSite)}
+                  >
+                    <Ionicons
+                      name="chatbubbles-outline"
+                      size={18}
+                      color="#2563eb"
+                    />
+                    <Text style={styles.seeReviewsButtonText}>
+                      See User Reviews
+                    </Text>
+                  </TouchableOpacity>
                 </>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reviews List Modal */}
+      <Modal visible={showReviewsListModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.reviewsListModalContainer}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Reviews</Text>
+                {siteReviewSummary && (
+                  <View style={styles.summaryBadge}>
+                    <Ionicons name="star" size={14} color="#f59e0b" />
+                    <Text style={styles.summaryBadgeText}>
+                      {siteReviewSummary.averageRating} (
+                      {siteReviewSummary.totalReviews})
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setShowReviewsListModal(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+            >
+              {loadingReviews ? (
+                <View style={styles.centerContainer}>
+                  <ActivityIndicator size="large" color="#2563eb" />
+                  <Text style={styles.loadingText}>Loading reviews...</Text>
+                </View>
+              ) : !siteReviewSummary ||
+                siteReviewSummary.reviews.length === 0 ? (
+                <View style={[styles.centerContainer, { marginTop: 40 }]}>
+                  <Ionicons
+                    name="chatbox-ellipses-outline"
+                    size={48}
+                    color="#94a3b8"
+                  />
+                  <Text style={styles.noReviewsText}>
+                    No reviews yet. Be the first to share your experience!
+                  </Text>
+                </View>
+              ) : (
+                siteReviewSummary.reviews.map((rev, idx) => (
+                  <View key={idx} style={styles.reviewCard}>
+                    <View style={styles.reviewCardHeader}>
+                      <View style={styles.userAvatar}>
+                        <Text style={styles.userAvatarText}>
+                          {(rev.user?.name || "U").charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>
+                          {rev.user?.name || "Anonymous User"}
+                        </Text>
+                        <View style={styles.reviewMeta}>
+                          <View style={styles.starRowSmall}>
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Ionicons
+                                key={s}
+                                name={s <= rev.rating ? "star" : "star-outline"}
+                                size={12}
+                                color="#f59e0b"
+                              />
+                            ))}
+                          </View>
+                          <Text style={styles.reviewDate}>
+                            {new Date(rev.created_at).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.reviewText}>{rev.thoughts}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Review Modal */}
+      <Modal visible={showReviewModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.reviewModalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rate Your Experience</Text>
+              <TouchableOpacity onPress={() => setShowReviewModal(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.ratingContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setReviewRating(star)}
+                  testID={`star-${star}`}
+                >
+                  <Ionicons
+                    name={star <= reviewRating ? "star" : "star-outline"}
+                    size={32}
+                    color={star <= reviewRating ? "#FFAD00" : "#94a3b8"}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Tell us what you liked about this place..."
+              multiline
+              numberOfLines={4}
+              value={reviewThoughts}
+              onChangeText={setReviewThoughts}
+            />
+
+            <View style={styles.formActions}>
+              <TouchableOpacity
+                style={styles.bookButton}
+                onPress={handleReviewSubmit}
+                disabled={submittingReview}
+              >
+                <Text style={styles.bookButtonText}>
+                  {submittingReview ? "Submitting..." : "Submit Review"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowReviewModal(false);
+                  setReviewThoughts("");
+                  setReviewRating(0);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1298,6 +1550,84 @@ function HeritageSiteScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Reviews List Modal */}
+      <Modal visible={showReviewsListModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.reviewsListModalContainer}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Reviews</Text>
+                {siteReviewSummary && (
+                  <View style={styles.summaryBadge}>
+                    <Ionicons name="star" size={14} color="#f59e0b" />
+                    <Text style={styles.summaryBadgeText}>
+                      {siteReviewSummary.averageRating} (
+                      {siteReviewSummary.totalReviews})
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setShowReviewsListModal(false)}>
+                <Ionicons name="close" size={24} color="#0f172a" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+              {loadingReviews ? (
+                <View style={styles.centerContainer}>
+                  <ActivityIndicator size="large" color="#2563eb" />
+                  <Text style={styles.loadingText}>Loading reviews...</Text>
+                </View>
+              ) : !siteReviewSummary || siteReviewSummary.reviews.length === 0 ? (
+                <View style={[styles.centerContainer, { marginTop: 40 }]}>
+                  <Ionicons
+                    name="chatbox-ellipses-outline"
+                    size={48}
+                    color="#94a3b8"
+                  />
+                  <Text style={styles.noReviewsText}>
+                    No reviews yet. Be the first to share your experience!
+                  </Text>
+                </View>
+              ) : (
+                siteReviewSummary.reviews.map((rev: any, idx: number) => (
+                  <View key={idx} style={styles.reviewCard}>
+                    <View style={styles.reviewCardHeader}>
+                      <View style={styles.userAvatar}>
+                        <Text style={styles.userAvatarText}>
+                          {(rev.user?.name || "U").charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userName}>
+                          {rev.user?.name || "Anonymous User"}
+                        </Text>
+                        <View style={styles.reviewMeta}>
+                          <View style={styles.starRowSmall}>
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Ionicons
+                                key={s}
+                                name={s <= rev.rating ? "star" : "star-outline"}
+                                size={12}
+                                color="#f59e0b"
+                              />
+                            ))}
+                          </View>
+                          <Text style={styles.reviewDate}>
+                            {new Date(rev.created_at).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.reviewText}>{rev.thoughts}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1315,6 +1645,14 @@ const styles = StyleSheet.create({
   headerSection: {
     gap: 4,
     marginBottom: 16,
+  },
+  headerLeftWithBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  backButton: {
+    marginLeft: -4,
   },
   headerTop: {
     flexDirection: "row",
@@ -1518,27 +1856,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#EFF6FF",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    gap: 8,
+    backgroundColor: "#fff", // White Background
+    borderWidth: 1.5,
+    borderColor: "#b91c1c", // Red Border
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   navButtonText: {
-    fontSize: 13,
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  googleMapButton: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
-  },
-  googleMapButtonText: {
-    fontSize: 13,
-    color: "#059669",
-    fontWeight: "600",
+    fontSize: 14,
+    color: "#b91c1c", // Red Text
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   footerRow: {
     flexDirection: "row",
@@ -1618,8 +1953,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     color: "#111827",
   },
+  imagePickerButtonSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  imagePickerTextSmall: {
+    fontSize: 13,
+    color: "#4B5563",
+    fontWeight: "500",
+  },
   textArea: {
-    height: 100,
+    height: 180,
     textAlignVertical: "top",
   },
   mapInput: {
@@ -1880,6 +2227,158 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 10,
     fontWeight: "600",
+  },
+  leaveReviewButton: {
+    backgroundColor: "#b91c1c",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  leaveReviewButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  reviewModalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginVertical: 20,
+  },
+  reviewInput: {
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    padding: 16,
+    height: 120,
+    textAlignVertical: "top",
+    fontSize: 15,
+    color: "#000",
+    marginBottom: 20,
+  },
+  submitReviewButton: {
+    backgroundColor: "#b91c1c",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  submitReviewButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  seeReviewsButton: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+  },
+  seeReviewsButtonText: {
+    color: "#2563eb",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  reviewsListModalContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
+    height: "80%",
+  },
+  summaryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    gap: 4,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+  summaryBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#d97706",
+  },
+  noReviewsText: {
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: 15,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  reviewCard: {
+    backgroundColor: "#f8fafc",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    gap: 12,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  userAvatarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  reviewMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  starRowSmall: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: "#94a3b8",
+  },
+  reviewText: {
+    fontSize: 14,
+    color: "#475569",
+    lineHeight: 20,
   },
 });
 
