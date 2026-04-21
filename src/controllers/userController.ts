@@ -10,17 +10,17 @@ import { getFullUrl } from "../utils/mediaPath.js";
 const JWT_SECRET = process.env.JWT_SECRET || "historicalwalksecret";
 const OTP_EXPIRY_MINUTES = 10;
 
-// Helper function to generate OTP
+//generate OTP
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Helper function to hash password
+// hash password
 const hashPassword = async (password: string): Promise<string> => {
   return await bcrypt.hash(password, 10);
 };
 
-// Helper function to compare password
+//compare password
 const comparePassword = async (
   password: string,
   hashedPassword: string,
@@ -28,7 +28,7 @@ const comparePassword = async (
   return await bcrypt.compare(password, hashedPassword);
 };
 
-// Helper function to generate JWT token
+//JWT token
 const generateToken = (
   userId: number,
   role: string,

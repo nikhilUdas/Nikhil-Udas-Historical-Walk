@@ -5,8 +5,6 @@ import express from "express";
 import http from "http";
 import path from "path";
 import { initializeSocket } from "./services/socketService.js";
-
-// ❗ FIX 1: Correct route import (your file has 'userRoutes')
 import adminHeritageSiteRoutes from "./routes/adminHeritageSiteRoute.js";
 import adminStoryRoutes from "./routes/adminStoryRoute.js";
 import favoriteRoutes from "./routes/favoriteRoute.js";
