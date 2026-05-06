@@ -7,19 +7,19 @@ import { fileToBase64 } from "../utils/fileUpload.js";
 import { getFullUrl } from "../utils/mediaPath.js";
 const JWT_SECRET = process.env.JWT_SECRET || "historicalwalksecret";
 const OTP_EXPIRY_MINUTES = 10;
-// Helper function to generate OTP
+//generate OTP
 const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
-// Helper function to hash password
+// hash password
 const hashPassword = async (password) => {
     return await bcrypt.hash(password, 10);
 };
-// Helper function to compare password
+//compare password
 const comparePassword = async (password, hashedPassword) => {
     return await bcrypt.compare(password, hashedPassword);
 };
-// Helper function to generate JWT token
+//JWT token
 const generateToken = (userId, role, type) => {
     return jwt.sign({ userId, role, type }, JWT_SECRET, { expiresIn: "7d" });
 };

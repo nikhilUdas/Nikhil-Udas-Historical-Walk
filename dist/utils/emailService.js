@@ -13,18 +13,17 @@ if (SMTP_USER && SMTP_PASS) {
         transporter = nodemailer.createTransport({
             host: SMTP_HOST,
             port: SMTP_PORT,
-            secure: SMTP_SECURE, // true for 465, false for 587
+            secure: SMTP_SECURE,
             auth: {
                 user: SMTP_USER,
                 pass: SMTP_PASS,
             },
-            // Add connection timeout and debug options
-            connectionTimeout: 60000, // Increase to 60 seconds
+            connectionTimeout: 60000,
             greetingTimeout: 60000,
             socketTimeout: 60000,
-            debug: true, // Enable debug for now to help troubleshoot
-            logger: true, // Enable logger for now to help troubleshoot
-            pool: false, // Disable pooling to see if it helps with connection stability on Render
+            debug: true,
+            logger: true,
+            pool: false,
         });
         // Verify connection asynchronously (don't block startup)
         transporter.verify((error, success) => {
